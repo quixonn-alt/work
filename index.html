@@ -1,0 +1,1382 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>פקעות</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@500;700;800&family=Assistant:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#26221C;
+    --ink-soft:#5A5445;
+    --paper:#E7DFCB;
+    --card:#F5F0E3;
+    --card-edge:#D8CDAE;
+    --rust:#A8452E;
+    --rust-dark:#8A3620;
+    --olive:#4E7A3E;
+    --olive-dark:#3B5E2E;
+    --amber:#B98420;
+    --amber-dark:#8C6218;
+    --white:#FFFDF8;
+  }
+
+  *{ box-sizing:border-box; }
+
+  html,body{
+    margin:0; padding:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Assistant', sans-serif;
+    min-height:100%;
+  }
+
+  body{ padding-bottom:104px; }
+
+  h1,h2,h3{ font-family:'Heebo', sans-serif; margin:0; }
+
+  .num{
+    font-family:'JetBrains Mono', monospace;
+    direction:ltr;
+    unicode-bidi:embed;
+  }
+
+  .tag-header{
+    position:relative;
+    background:var(--card);
+    border-bottom:2px dashed var(--card-edge);
+    padding:16px 20px 0;
+  }
+
+  .tag-header::before{
+    content:"";
+    position:absolute;
+    top:11px; left:20px;
+    width:13px; height:13px;
+    border-radius:50%;
+    background:var(--paper);
+    border:2px solid var(--card-edge);
+  }
+
+  .tag-header h1{ font-size:1.25rem; font-weight:800; }
+
+  .main-tabs{ display:flex; gap:22px; margin-top:12px; }
+
+  .main-tab{
+    background:none;
+    border:none;
+    padding:0 0 9px;
+    font-family:'Heebo', sans-serif;
+    font-size:0.98rem;
+    font-weight:700;
+    color:var(--ink-soft);
+    cursor:pointer;
+    border-bottom:3px solid transparent;
+    margin-bottom:-2px;
+  }
+
+  .main-tab.active{ color:var(--ink); border-bottom-color:var(--rust); }
+
+  .controls{
+    padding:12px 16px 4px;
+    position:sticky; top:0;
+    background:var(--paper);
+    z-index:5;
+  }
+
+  #search{
+    width:100%;
+    padding:10px 13px;
+    font-size:0.93rem;
+    font-family:'Assistant', sans-serif;
+    border:2px solid var(--card-edge);
+    border-radius:3px;
+    background:var(--white);
+    color:var(--ink);
+    outline:none;
+  }
+
+  #search:focus{ border-color:var(--rust); }
+
+  .filter-chips{ display:flex; gap:8px; margin:10px 0 4px; }
+
+  .chip{
+    flex:1;
+    padding:7px 6px;
+    font-family:'Assistant', sans-serif;
+    font-size:0.84rem;
+    font-weight:600;
+    background:var(--card);
+    border:2px solid var(--card-edge);
+    border-radius:3px;
+    color:var(--ink-soft);
+    cursor:pointer;
+  }
+
+  .chip.active{ border-color:var(--ink); color:var(--ink); background:var(--white); }
+
+  .list{ padding:8px 16px 4px; display:flex; flex-direction:column; gap:6px; }
+
+  .item-card{
+    background:var(--card);
+    border:1px solid var(--card-edge);
+    border-radius:3px;
+    padding:8px 12px 9px;
+    position:relative;
+    overflow:hidden;
+    cursor:pointer;
+    text-align:right;
+    width:100%;
+    font-family:'Assistant', sans-serif;
+    display:block;
+  }
+
+  .item-card::before{
+    content:"";
+    position:absolute;
+    top:0; bottom:0; right:0;
+    width:4px;
+    background:var(--amber);
+  }
+
+  .item-card.status-done::before{ background:var(--olive); }
+  .item-card.status-done{ opacity:0.62; }
+
+  .card-line{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    gap:10px;
+  }
+
+  .pka-number{
+    font-family:'JetBrains Mono', monospace;
+    direction:ltr; unicode-bidi:embed;
+    font-weight:700;
+    font-size:0.9rem;
+    color:var(--rust-dark);
+    flex-shrink:0;
+  }
+
+  .card-right{ display:flex; align-items:baseline; gap:9px; min-width:0; }
+
+  .card-qty{
+    font-family:'JetBrains Mono', monospace;
+    direction:ltr; unicode-bidi:embed;
+    font-size:0.85rem;
+    font-weight:600;
+    color:var(--ink);
+    white-space:nowrap;
+  }
+
+  .card-qty .u{
+    font-family:'Assistant', sans-serif;
+    font-weight:500;
+    color:var(--ink-soft);
+    font-size:0.8rem;
+  }
+
+  .card-qty.missing{ color:var(--rust); font-weight:700; }
+
+  .order-badge{
+    font-family:'JetBrains Mono', monospace;
+    direction:ltr; unicode-bidi:embed;
+    font-size:0.82rem;
+    font-weight:700;
+    color:var(--olive-dark);
+    background:rgba(78,122,62,0.13);
+    border-radius:3px;
+    padding:1px 7px;
+    white-space:nowrap;
+  }
+
+  .item-desc{
+    font-family:'Assistant', sans-serif;
+    font-weight:600;
+    font-size:0.9rem;
+    color:var(--ink);
+    margin-top:3px;
+    line-height:1.35;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    display:-webkit-box;
+    -webkit-line-clamp:2;
+    -webkit-box-orient:vertical;
+  }
+
+  .item-card.status-done .item-desc{ text-decoration:line-through; text-decoration-color:var(--ink-soft); }
+
+  .empty{ padding:60px 30px; text-align:center; color:var(--ink-soft); }
+  .empty p:first-child{
+    font-family:'Heebo', sans-serif;
+    font-weight:700;
+    color:var(--ink);
+    font-size:1.05rem;
+    margin-bottom:6px;
+  }
+
+  .bottom-bar{
+    position:fixed;
+    bottom:0; right:0; left:0;
+    padding:12px 16px calc(12px + env(safe-area-inset-bottom));
+    background:var(--paper);
+    border-top:2px dashed var(--card-edge);
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+
+  .bar-row{ display:flex; gap:8px; }
+
+  .bar-btn{
+    flex:1;
+    padding:12px 8px;
+    border:none;
+    border-radius:4px;
+    font-family:'Heebo', sans-serif;
+    font-size:0.93rem;
+    font-weight:700;
+    cursor:pointer;
+  }
+
+  #scanBtn{ background:var(--rust); color:var(--white); }
+  #scanBtn:active{ background:var(--rust-dark); }
+
+  #addBtn{ background:var(--card); color:var(--ink); border:2px solid var(--card-edge); }
+  #addBtn:active{ background:var(--card-edge); }
+
+  #paintedBtn{
+    background:var(--olive);
+    color:var(--white);
+    width:100%;
+    padding:12px;
+    border:none;
+    border-radius:4px;
+    font-family:'Heebo', sans-serif;
+    font-size:1rem;
+    font-weight:700;
+    cursor:pointer;
+  }
+  #paintedBtn:active{ background:var(--olive-dark); }
+  #paintedBtn:disabled{ background:var(--card-edge); color:var(--ink-soft); cursor:default; }
+
+  .modal-overlay{
+    position:fixed; inset:0;
+    background:rgba(38,34,28,0.5);
+    display:flex; align-items:flex-end;
+    z-index:20;
+  }
+
+  .modal{
+    background:var(--white);
+    width:100%;
+    border-radius:14px 14px 0 0;
+    padding:20px 20px calc(20px + env(safe-area-inset-bottom));
+    max-height:88vh;
+    overflow-y:auto;
+  }
+
+  .modal h2{ font-size:1.15rem; margin-bottom:6px; }
+  .modal .modal-sub{ font-size:0.85rem; color:var(--ink-soft); margin:0 0 16px; }
+
+  .field{ margin-bottom:14px; }
+
+  .field label{
+    display:block;
+    font-size:0.85rem;
+    font-weight:600;
+    color:var(--ink-soft);
+    margin-bottom:5px;
+  }
+
+  .field input, .field select{
+    width:100%;
+    padding:10px 12px;
+    border:2px solid var(--card-edge);
+    border-radius:3px;
+    font-family:'Assistant', sans-serif;
+    font-size:0.95rem;
+    color:var(--ink);
+    background:var(--white);
+    outline:none;
+  }
+
+  .field input:focus, .field select:focus{ border-color:var(--rust); }
+
+  .row-2{ display:flex; gap:10px; }
+  .row-2 .field{ flex:1; }
+
+  .status-toggle{ display:flex; gap:8px; }
+
+  .status-toggle button{
+    flex:1;
+    padding:10px;
+    border:2px solid var(--card-edge);
+    background:var(--card);
+    border-radius:3px;
+    font-family:'Assistant', sans-serif;
+    font-size:0.9rem;
+    font-weight:600;
+    color:var(--ink-soft);
+    cursor:pointer;
+  }
+
+  .status-toggle button.on{ background:var(--white); color:var(--ink); border-color:var(--ink); }
+
+  .section-label{
+    font-size:0.78rem;
+    font-weight:700;
+    color:var(--ink-soft);
+    margin:18px 0 10px;
+    padding-top:14px;
+    border-top:1px dashed var(--card-edge);
+  }
+
+  .modal-actions{ display:flex; gap:10px; margin-top:18px; }
+
+  .btn{
+    flex:1;
+    padding:12px;
+    border-radius:4px;
+    font-family:'Heebo', sans-serif;
+    font-weight:700;
+    font-size:0.95rem;
+    border:none;
+    cursor:pointer;
+  }
+
+  .btn-primary{ background:var(--rust); color:var(--white); }
+  .btn-green{ background:var(--olive); color:var(--white); }
+  .btn-green:disabled{ background:var(--card-edge); color:var(--ink-soft); cursor:default; }
+  .btn-secondary{ background:var(--card); color:var(--ink); border:2px solid var(--card-edge); }
+
+  .delete-link{
+    display:block;
+    text-align:center;
+    margin-top:16px;
+    color:var(--rust-dark);
+    font-size:0.88rem;
+    font-weight:600;
+    background:none; border:none;
+    cursor:pointer;
+    text-decoration:underline;
+  }
+
+  .status-msg{ text-align:center; padding:16px; color:var(--ink-soft); font-size:0.88rem; }
+
+  .scan-state{ text-align:center; padding:24px 10px; }
+  .scan-state .spinner{
+    width:34px; height:34px;
+    border:3px solid var(--card-edge);
+    border-top-color:var(--rust);
+    border-radius:50%;
+    margin:0 auto 14px;
+    animation:spin 0.9s linear infinite;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  @media (prefers-reduced-motion:reduce){ .scan-state .spinner{ animation-duration:2.5s; } }
+  .scan-state p{ margin:0; color:var(--ink-soft); font-size:0.9rem; }
+  .scan-error{
+    background:#F7E6E1;
+    border:1.5px solid var(--rust);
+    color:var(--rust-dark);
+    border-radius:3px;
+    padding:11px 13px;
+    font-size:0.87rem;
+    margin-bottom:14px;
+  }
+
+  .select-list{ display:flex; flex-direction:column; gap:7px; margin-bottom:4px; }
+
+  .group-label{
+    font-size:0.78rem;
+    font-weight:700;
+    color:var(--ink-soft);
+    margin:10px 0 2px;
+  }
+  .group-label:first-child{ margin-top:0; }
+
+  .select-row{
+    display:flex;
+    align-items:flex-start;
+    gap:11px;
+    padding:9px 11px;
+    background:var(--card);
+    border:2px solid var(--card-edge);
+    border-radius:3px;
+    cursor:pointer;
+  }
+
+  .select-row.selected{ border-color:var(--olive); background:var(--white); }
+
+  .select-row input[type=checkbox]{
+    width:19px; height:19px;
+    margin:2px 0 0;
+    accent-color:var(--olive);
+    flex-shrink:0;
+  }
+
+  .select-row .sr-desc{ font-weight:600; font-size:0.9rem; margin-top:2px; }
+  .select-row .sr-meta{ font-size:0.78rem; color:var(--ink-soft); margin-top:2px; }
+
+  .qty-entry{
+    padding:11px 12px;
+    background:var(--card);
+    border:1px solid var(--card-edge);
+    border-radius:3px;
+    margin-bottom:9px;
+  }
+
+  .qty-entry .qe-head{ display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+  .qty-entry .qe-desc{ font-size:0.82rem; color:var(--ink-soft); margin-top:2px; }
+  .qty-entry .qe-input-row{ display:flex; align-items:center; gap:9px; margin-top:9px; }
+
+  .qty-entry input{
+    flex:1;
+    padding:9px 11px;
+    border:2px solid var(--card-edge);
+    border-radius:3px;
+    font-family:'JetBrains Mono', monospace;
+    direction:ltr;
+    text-align:center;
+    font-size:1rem;
+    background:var(--white);
+    color:var(--ink);
+    outline:none;
+  }
+
+  .qty-entry input:focus{ border-color:var(--olive); }
+
+  .qe-unit{ font-size:0.85rem; color:var(--ink-soft); white-space:nowrap; }
+
+  .qe-fill{
+    padding:9px 12px;
+    border:2px solid var(--card-edge);
+    background:var(--white);
+    border-radius:3px;
+    font-family:'Assistant', sans-serif;
+    font-size:0.82rem;
+    font-weight:600;
+    color:var(--ink);
+    cursor:pointer;
+    white-space:nowrap;
+  }
+
+  .summary-box{
+    background:var(--card);
+    border:1px solid var(--card-edge);
+    border-radius:3px;
+    padding:14px;
+    font-family:'JetBrains Mono', monospace;
+    font-size:0.9rem;
+    line-height:1.75;
+    white-space:pre-wrap;
+    direction:ltr;
+    text-align:left;
+    color:var(--ink);
+    margin-bottom:12px;
+    overflow-x:auto;
+  }
+
+  #copyBtn.copied{ background:var(--olive); }
+
+  [hidden]{ display:none !important; }
+</style>
+</head>
+<body>
+
+  <div class="tag-header">
+    <h1>פקעות</h1>
+    <div class="main-tabs">
+      <button class="main-tab active" data-kind="pka">פקעות</button>
+      <button class="main-tab" data-kind="sku">מק״טים</button>
+    </div>
+  </div>
+
+  <div class="controls">
+    <input type="search" id="search" placeholder="חיפוש...">
+    <div class="filter-chips">
+      <button class="chip active" data-filter="all">הכול</button>
+      <button class="chip" data-filter="open">פתוחים</button>
+      <button class="chip" data-filter="done">הושלמו</button>
+    </div>
+  </div>
+
+  <div id="statusMsg" class="status-msg">טוען נתונים...</div>
+  <div id="list" class="list" hidden></div>
+  <div id="empty" class="empty" hidden>
+    <p id="emptyTitle">אין עדיין פקעות ברשימה</p>
+    <p id="emptySub">צלם דף פק״ע כדי להוסיף את הראשון</p>
+  </div>
+
+  <div class="bottom-bar">
+    <button id="paintedBtn">נצבעו</button>
+    <div class="bar-row">
+      <button id="scanBtn" class="bar-btn">📷 צילום פק״ע</button>
+      <button id="addBtn" class="bar-btn">הוספה ידנית</button>
+    </div>
+  </div>
+
+  <input type="file" id="fileInput" accept="image/*" capture="environment" hidden>
+
+  <div id="modalOverlay" class="modal-overlay" hidden>
+    <div class="modal">
+      <h2 id="modalTitle">הוספת פק״ע</h2>
+      <p class="modal-sub" id="modalSub" hidden>בדוק שהפרטים נקראו נכון לפני שמירה</p>
+
+      <div class="field" id="pkaField">
+        <label for="f-pka">מספר פק״ע</label>
+        <input type="text" id="f-pka" placeholder="למשל: DS26017372">
+      </div>
+      <div class="field">
+        <label for="f-sku" id="skuLabel">מק״ט</label>
+        <input type="text" id="f-sku" placeholder="למשל: 313X10900100">
+      </div>
+      <div class="field">
+        <label for="f-desc" id="descLabel">תאור הפק״ע</label>
+        <input type="text" id="f-desc" placeholder="למשל: מסגרת למיכל-נגרר מנהרה 3000ל">
+      </div>
+      <div class="row-2">
+        <div class="field">
+          <label for="f-qty">כמות</label>
+          <input type="number" id="f-qty" min="0" step="0.001" placeholder="0" inputmode="decimal">
+        </div>
+        <div class="field">
+          <label for="f-unit">יחידה</label>
+          <select id="f-unit">
+            <option value="יח'">יח'</option>
+            <option value="ש״ע">ש״ע</option>
+            <option value="ק״ג">ק״ג</option>
+            <option value="מ׳">מ׳</option>
+            <option value="מ״ר">מ״ר</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="f-date">תאריך</label>
+        <input type="date" id="f-date">
+      </div>
+
+      <div class="field" id="statusField" hidden>
+        <label>סטטוס</label>
+        <div class="status-toggle">
+          <button type="button" id="statusOpen" data-done="0">פתוח</button>
+          <button type="button" id="statusDone" data-done="1">הושלם</button>
+        </div>
+      </div>
+
+      <div id="orderSection">
+        <div class="section-label">שיוך להזמנה (אופציונלי)</div>
+        <div class="row-2">
+          <div class="field">
+            <label for="f-order">מספר הזמנה</label>
+            <input type="text" id="f-order" placeholder="למשל: SO26S000055">
+          </div>
+          <div class="field">
+            <label for="f-orderrow">שורה</label>
+            <input type="text" id="f-orderrow" placeholder="למשל: 1">
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-secondary" id="cancelBtn">ביטול</button>
+        <button class="btn btn-primary" id="saveBtn">שמירה</button>
+      </div>
+      <button class="delete-link" id="deleteBtn" hidden>מחיקה</button>
+    </div>
+  </div>
+
+  <div id="scanOverlay" class="modal-overlay" hidden>
+    <div class="modal">
+      <h2>קורא את הדף</h2>
+      <div class="scan-state">
+        <div class="spinner"></div>
+        <p id="scanStateText">מזהה את הפרטים בצילום...</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="skuPickOverlay" class="modal-overlay" hidden>
+    <div class="modal">
+      <h2>מק״טים שזוהו בצילום</h2>
+      <p class="modal-sub">סמן מה להוסיף ומלא כמות לכל אחד</p>
+      <div id="skuPickList"></div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" id="skuPickCancelBtn">ביטול</button>
+        <button class="btn btn-primary" id="skuPickAddBtn">הוספה</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="selectOverlay" class="modal-overlay" hidden>
+    <div class="modal">
+      <h2>מה נצבע?</h2>
+      <p class="modal-sub">בחר פריט אחד או יותר</p>
+      <div id="selectList" class="select-list"></div>
+      <div id="selectEmpty" class="status-msg" hidden>אין פריטים פתוחים לבחירה</div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" id="selectCancelBtn">ביטול</button>
+        <button class="btn btn-green" id="selectNextBtn" disabled>המשך</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="qtyOverlay" class="modal-overlay" hidden>
+    <div class="modal">
+      <h2>כמה נצבע מכל אחד?</h2>
+      <p class="modal-sub">רשום את הכמות שסיימת לצבוע</p>
+      <div id="qtyList"></div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" id="qtyBackBtn">חזרה</button>
+        <button class="btn btn-green" id="qtyDoneBtn">סיום</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="summaryOverlay" class="modal-overlay" hidden>
+    <div class="modal">
+      <h2>סיכום צביעה</h2>
+      <p class="modal-sub">הועד מהמלאי ונרשם על הפריטים</p>
+      <div id="summaryBox" class="summary-box"></div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" id="summaryCloseBtn">סגירה</button>
+        <button class="btn btn-green" id="copyBtn">העתקת הטקסט</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  let items = [];
+  let currentKind = 'pka';
+  let filter = 'all';
+  let searchTerm = '';
+  let editingId = null;
+  let editingKind = 'pka';
+  let editingDone = false;
+  let dataReady = false;
+  let selectedIds = [];
+  let scannedSkus = [];
+
+  const listEl = document.getElementById('list');
+  const emptyEl = document.getElementById('empty');
+  const emptyTitle = document.getElementById('emptyTitle');
+  const emptySub = document.getElementById('emptySub');
+  const statusMsgEl = document.getElementById('statusMsg');
+  const searchEl = document.getElementById('search');
+  const scanBtn = document.getElementById('scanBtn');
+
+  const modalOverlay = document.getElementById('modalOverlay');
+  const modalTitle = document.getElementById('modalTitle');
+  const modalSub = document.getElementById('modalSub');
+  const pkaField = document.getElementById('pkaField');
+  const orderSection = document.getElementById('orderSection');
+  const descLabel = document.getElementById('descLabel');
+  const pkaInput = document.getElementById('f-pka');
+  const descInput = document.getElementById('f-desc');
+  const skuInput = document.getElementById('f-sku');
+  const qtyInput = document.getElementById('f-qty');
+  const unitInput = document.getElementById('f-unit');
+  const dateInput = document.getElementById('f-date');
+  const orderInput = document.getElementById('f-order');
+  const orderRowInput = document.getElementById('f-orderrow');
+  const deleteBtn = document.getElementById('deleteBtn');
+  const statusField = document.getElementById('statusField');
+  const statusOpenBtn = document.getElementById('statusOpen');
+  const statusDoneBtn = document.getElementById('statusDone');
+
+  const scanOverlay = document.getElementById('scanOverlay');
+  const scanStateText = document.getElementById('scanStateText');
+  const fileInput = document.getElementById('fileInput');
+
+  const skuPickOverlay = document.getElementById('skuPickOverlay');
+  const skuPickList = document.getElementById('skuPickList');
+
+  const selectOverlay = document.getElementById('selectOverlay');
+  const selectListEl = document.getElementById('selectList');
+  const selectEmptyEl = document.getElementById('selectEmpty');
+  const selectNextBtn = document.getElementById('selectNextBtn');
+
+  const qtyOverlay = document.getElementById('qtyOverlay');
+  const qtyListEl = document.getElementById('qtyList');
+
+  const summaryOverlay = document.getElementById('summaryOverlay');
+  const summaryBox = document.getElementById('summaryBox');
+  const copyBtn = document.getElementById('copyBtn');
+  const paintedBtn = document.getElementById('paintedBtn');
+
+  const MAX_QTY = 100;
+
+  function uid(){
+    return 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,8);
+  }
+
+  function todayStr(){
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+
+  function escapeHtml(str){
+    const d = document.createElement('div');
+    d.textContent = str == null ? '' : String(str);
+    return d.innerHTML;
+  }
+
+  /* Quantities on these documents are printed as N.NNN with a decimal point:
+     "3.000" is three, "4.050" is four and five hundredths. They never reach 100. */
+  function normalizeQty(v){
+    let n = Number(v);
+    if(isNaN(n)) return null;
+    let guard = 0;
+    while(n >= MAX_QTY && guard < 4){ n = n / 1000; guard++; }
+    return parseFloat(n.toFixed(3));
+  }
+
+  function parseQtyText(raw){
+    if(raw === null || raw === undefined || raw === '') return null;
+    let s = String(raw).trim().replace(/[^\d.,]/g,'').replace(/,/g,'.');
+    if(!s) return null;
+    const parts = s.split('.');
+    if(parts.length > 2) s = parts.slice(0,-1).join('') + '.' + parts[parts.length-1];
+    const v = parseFloat(s);
+    if(isNaN(v)) return null;
+    return normalizeQty(v);
+  }
+
+  function trimNum(n){
+    if(n === null || n === undefined || n === '') return '';
+    const num = Number(n);
+    if(isNaN(num)) return '';
+    return String(parseFloat(num.toFixed(3)));
+  }
+
+  function remainingOf(it){
+    if(it.qty === null || it.qty === undefined || it.qty === '') return null;
+    const total = Number(it.qty);
+    if(isNaN(total)) return null;
+    return Math.max(0, total - (Number(it.paintedQty) || 0));
+  }
+
+  function orderShort(orderNumber){
+    if(!orderNumber) return '';
+    const m = String(orderNumber).match(/(\d+)\s*$/);
+    if(!m) return String(orderNumber);
+    const n = parseInt(m[1], 10);
+    return isNaN(n) ? m[1] : String(n);
+  }
+
+  function labelOf(it){
+    return it.kind === 'sku' ? (it.sku || it.desc) : it.pka;
+  }
+
+  /* ---------- storage ---------- */
+
+  async function loadData(){
+    try{
+      const res = await window.storage.get('work-orders-list', false);
+      items = res && res.value ? JSON.parse(res.value) : [];
+    }catch(e){
+      items = [];
+    }
+
+    let changed = false;
+    items.forEach(it => {
+      if(it.paintedQty === undefined){ it.paintedQty = 0; changed = true; }
+      if(!it.kind){ it.kind = 'pka'; changed = true; }
+      if(it.v !== 2){
+        const fixed = normalizeQty(it.qty);
+        if(fixed !== null && fixed !== Number(it.qty)) it.qty = fixed;
+        const fixedPainted = normalizeQty(it.paintedQty);
+        if(fixedPainted !== null && fixedPainted !== Number(it.paintedQty)) it.paintedQty = fixedPainted;
+        it.v = 2;
+        changed = true;
+      }
+    });
+
+    dataReady = true;
+    statusMsgEl.hidden = true;
+    if(changed) saveData();
+    render();
+  }
+
+  async function saveData(){
+    try{
+      const res = await window.storage.set('work-orders-list', JSON.stringify(items), false);
+      if(!res) showSaveError();
+    }catch(e){ showSaveError(); }
+  }
+
+  function showSaveError(){
+    statusMsgEl.hidden = false;
+    statusMsgEl.textContent = 'לא ניתן היה לשמור כרגע — נסה שוב.';
+    setTimeout(()=>{ if(dataReady) statusMsgEl.hidden = true; }, 3000);
+  }
+
+  /* ---------- tabs ---------- */
+
+  document.querySelectorAll('.main-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.main-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      currentKind = tab.dataset.kind;
+      searchEl.value = '';
+      searchTerm = '';
+      applyKindChrome();
+      render();
+    });
+  });
+
+  function applyKindChrome(){
+    const isSku = currentKind === 'sku';
+    scanBtn.textContent = isSku ? '📷 צילום מק״ט' : '📷 צילום פק״ע';
+    searchEl.placeholder = isSku ? 'חיפוש לפי מק״ט או תיאור...' : 'חיפוש לפי מספר פק״ע, תאור או מק״ט...';
+    emptyTitle.textContent = isSku ? 'אין עדיין מק״טים ברשימה' : 'אין עדיין פקעות ברשימה';
+    emptySub.textContent = isSku ? 'צלם רשימת מק״טים כדי להוסיף' : 'צלם דף פק״ע כדי להוסיף את הראשון';
+  }
+
+  /* ---------- render ---------- */
+
+  function render(){
+    paintedBtn.disabled = items.filter(i => !i.done).length === 0;
+
+    let visible = items.filter(it => {
+      if(it.kind !== currentKind) return false;
+      if(searchTerm){
+        const hay = ((it.pka||'') + ' ' + it.desc + ' ' + (it.sku||'') + ' ' + (it.orderNumber||'')).toLowerCase();
+        if(!hay.includes(searchTerm.toLowerCase())) return false;
+      }
+      if(filter === 'open' && it.done) return false;
+      if(filter === 'done' && !it.done) return false;
+      return true;
+    });
+
+    visible.sort((a,b) => {
+      if(a.done !== b.done) return a.done ? 1 : -1;
+      return (a.date||'').localeCompare(b.date||'');
+    });
+
+    if(visible.length === 0){
+      const anyInKind = items.some(i => i.kind === currentKind);
+      if(!anyInKind){
+        listEl.hidden = true;
+        emptyEl.hidden = false;
+      }else{
+        emptyEl.hidden = true;
+        listEl.hidden = false;
+        listEl.innerHTML = '<div class="status-msg">לא נמצאו פריטים תואמים</div>';
+      }
+      return;
+    }
+
+    emptyEl.hidden = true;
+    listEl.hidden = false;
+
+    listEl.innerHTML = visible.map(it => {
+      const painted = Number(it.paintedQty) || 0;
+      const rem = remainingOf(it);
+
+      let qtyHtml;
+      if(rem === null){
+        qtyHtml = '<span class="card-qty missing">חסרה כמות</span>';
+      }else if(painted > 0){
+        qtyHtml = '<span class="card-qty">' + trimNum(rem) + '/' + trimNum(it.qty) + ' <span class="u">' + escapeHtml(it.unit||'') + '</span></span>';
+      }else{
+        qtyHtml = '<span class="card-qty">' + trimNum(it.qty) + ' <span class="u">' + escapeHtml(it.unit||'') + '</span></span>';
+      }
+
+      const short = it.kind === 'pka' ? orderShort(it.orderNumber) : '';
+      const orderHtml = short ? '<span class="order-badge">' + escapeHtml(short) + '</span>' : '';
+
+      return '<button class="item-card ' + (it.done ? 'status-done' : 'status-open') + '" data-id="' + it.id + '">' +
+        '<div class="card-line">' +
+          '<span class="pka-number">' + escapeHtml(labelOf(it)) + '</span>' +
+          '<span class="card-right">' + qtyHtml + orderHtml + '</span>' +
+        '</div>' +
+        '<div class="item-desc">' + escapeHtml(it.desc) + '</div>' +
+      '</button>';
+    }).join('');
+  }
+
+  listEl.addEventListener('click', (e) => {
+    const card = e.target.closest('.item-card');
+    if(!card) return;
+    const item = items.find(i => i.id === card.dataset.id);
+    if(item) openModal(item);
+  });
+
+  searchEl.addEventListener('input', (e) => { searchTerm = e.target.value; render(); });
+
+  document.querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      filter = chip.dataset.filter;
+      render();
+    });
+  });
+
+  /* ---------- add / edit ---------- */
+
+  function paintStatusToggle(){
+    statusOpenBtn.classList.toggle('on', !editingDone);
+    statusDoneBtn.classList.toggle('on', editingDone);
+  }
+
+  statusOpenBtn.addEventListener('click', () => { editingDone = false; paintStatusToggle(); });
+  statusDoneBtn.addEventListener('click', () => { editingDone = true; paintStatusToggle(); });
+
+  function openModal(item, prefill, kindOverride){
+    editingId = item ? item.id : null;
+    editingKind = item ? item.kind : (kindOverride || currentKind);
+    const isSku = editingKind === 'sku';
+
+    modalTitle.textContent = item
+      ? (isSku ? 'עריכת מק״ט' : 'עריכת פק״ע')
+      : (prefill ? 'פרטים מהסריקה' : (isSku ? 'הוספת מק״ט' : 'הוספת פק״ע'));
+    modalSub.hidden = !prefill;
+
+    pkaField.hidden = isSku;
+    orderSection.hidden = isSku;
+    descLabel.textContent = isSku ? 'תיאור' : 'תאור הפק״ע';
+
+    const src = item || prefill || {};
+    pkaInput.value = src.pka || '';
+    descInput.value = src.desc || '';
+    skuInput.value = src.sku || '';
+    qtyInput.value = (src.qty !== null && src.qty !== undefined) ? src.qty : '';
+    unitInput.value = src.unit && [...unitInput.options].some(o => o.value === src.unit) ? src.unit : "יח'";
+    dateInput.value = src.date || todayStr();
+    orderInput.value = src.orderNumber || '';
+    orderRowInput.value = src.orderRow || '';
+    editingDone = !!(item && item.done);
+    statusField.hidden = !item;
+    paintStatusToggle();
+    deleteBtn.hidden = !item;
+    modalOverlay.hidden = false;
+    (isSku ? skuInput : pkaInput).focus();
+  }
+
+  function closeModal(){
+    modalOverlay.hidden = true;
+    editingId = null;
+    modalSub.hidden = true;
+  }
+
+  document.getElementById('addBtn').addEventListener('click', () => openModal(null));
+  document.getElementById('cancelBtn').addEventListener('click', closeModal);
+  modalOverlay.addEventListener('click', (e) => { if(e.target === modalOverlay) closeModal(); });
+
+  document.getElementById('saveBtn').addEventListener('click', () => {
+    const isSku = editingKind === 'sku';
+    const pka = pkaInput.value.trim();
+    const sku = skuInput.value.trim();
+    const desc = descInput.value.trim();
+    const qtyRaw = qtyInput.value.trim();
+    const qty = qtyRaw === '' ? null : parseFloat(qtyRaw);
+
+    if(!isSku && !pka){ pkaInput.focus(); return; }
+    if(isSku && !sku){ skuInput.focus(); return; }
+    if(!desc){ descInput.focus(); return; }
+    if(qtyRaw !== '' && (isNaN(qty) || qty < 0)){ qtyInput.focus(); return; }
+
+    const payload = {
+      kind: editingKind,
+      pka: isSku ? '' : pka,
+      sku: sku,
+      desc: desc,
+      qty: qty,
+      unit: unitInput.value,
+      date: dateInput.value,
+      orderNumber: isSku ? '' : orderInput.value.trim(),
+      orderRow: isSku ? '' : orderRowInput.value.trim()
+    };
+
+    if(editingId){
+      const item = items.find(i => i.id === editingId);
+      if(item){
+        Object.assign(item, payload);
+        item.done = editingDone;
+      }
+    }else{
+      items.push(Object.assign({ id: uid(), done:false, paintedQty:0, v:2 }, payload));
+    }
+
+    saveData();
+    render();
+    closeModal();
+  });
+
+  deleteBtn.addEventListener('click', () => {
+    if(!editingId) return;
+    if(confirm('למחוק את הפריט הזה מהרשימה?')){
+      items = items.filter(i => i.id !== editingId);
+      saveData();
+      render();
+      closeModal();
+    }
+  });
+
+  /* ---------- scan ---------- */
+
+  scanBtn.addEventListener('click', () => {
+    fileInput.value = '';
+    fileInput.click();
+  });
+
+  fileInput.addEventListener('change', async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if(!file) return;
+    const kindAtScan = currentKind;
+    scanOverlay.hidden = false;
+    scanStateText.textContent = 'מכין את התמונה...';
+    try{
+      const b64 = await resizeToBase64(file, 1600);
+      scanStateText.textContent = kindAtScan === 'sku' ? 'מזהה מק״טים בצילום...' : 'מזהה את פרטי הפק״ע בצילום...';
+      if(kindAtScan === 'sku'){
+        const list = await extractSkus(b64);
+        scanOverlay.hidden = true;
+        if(list.length === 0){
+          openModal(null, {}, 'sku');
+          showScanError();
+        }else{
+          scannedSkus = list;
+          renderSkuPick();
+          skuPickOverlay.hidden = false;
+        }
+      }else{
+        const data = await extractWorkOrder(b64);
+        scanOverlay.hidden = true;
+        openModal(null, data, 'pka');
+      }
+    }catch(err){
+      scanOverlay.hidden = true;
+      openModal(null, {}, kindAtScan);
+      showScanError();
+    }
+  });
+
+  function showScanError(){
+    if(document.getElementById('scanErrBox')) return;
+    const box = document.createElement('div');
+    box.id = 'scanErrBox';
+    box.className = 'scan-error';
+    box.textContent = 'הקריאה מהצילום לא הצליחה. מלא את הפרטים ידנית, או נסה לצלם שוב באור טוב וקרוב יותר לדף.';
+    modalSub.parentNode.insertBefore(box, modalSub.nextSibling);
+    setTimeout(() => { const b = document.getElementById('scanErrBox'); if(b) b.remove(); }, 9000);
+  }
+
+  function resizeToBase64(file, maxDim){
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          let w = img.width, h = img.height;
+          if(Math.max(w,h) > maxDim){
+            const s = maxDim / Math.max(w,h);
+            w = Math.round(w*s); h = Math.round(h*s);
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/jpeg', 0.86).split(',')[1]);
+        };
+        img.onerror = () => reject(new Error('image decode failed'));
+        img.src = reader.result;
+      };
+      reader.onerror = () => reject(new Error('file read failed'));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function callClaude(base64, prompt){
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({
+        model:'claude-sonnet-4-6',
+        max_tokens:1000,
+        messages:[{
+          role:'user',
+          content:[
+            { type:'image', source:{ type:'base64', media_type:'image/jpeg', data:base64 } },
+            { type:'text', text:prompt }
+          ]
+        }]
+      })
+    });
+    const data = await response.json();
+    const text = (data.content || []).filter(c => c.type === 'text').map(c => c.text).join('\n');
+    const clean = text.replace(/```json/g,'').replace(/```/g,'').trim();
+    const start = clean.indexOf('{'), end = clean.lastIndexOf('}');
+    return JSON.parse(clean.slice(start, end + 1));
+  }
+
+  async function extractWorkOrder(base64){
+    const prompt = [
+      'זהו צילום של "כרטיס עבודה לפק\u0022ע" ממפעל ישראלי (דגניה תעשיות).',
+      'חלץ מהדף את השדות הבאים והחזר JSON בלבד, ללא טקסט נוסף וללא סימני קוד:',
+      '{"pka":"","desc":"","sku":"","qtyRaw":"","unit":"","date":"","orderNumber":"","orderRow":""}',
+      '',
+      'הנחיות:',
+      '- pka: מספר הפק\u0022ע מהכותרת "כרטיס עבודה לפק\u0022ע" (למשל DS26017372).',
+      '- desc: הטקסט שליד "תאור הפק\u0022ע".',
+      '- sku: המספר שליד "מק\u0022ט" בראש הדף (לא מהטבלה למטה).',
+      '- qtyRaw: הכמות שליד "כ. הפק\u0022ע", בדיוק כפי שהיא מודפסת בדף, כמחרוזת.',
+      '  חשוב מאוד: הנקודה בדף היא נקודה עשרונית ולא מפריד אלפים.',
+      '  "1.000" פירושו אחד. "3.000" פירושו שלוש. "4.050" פירושו ארבע וחמש מאיות.',
+      '  אל תמיר, אל תעגל ואל תוריד ספרות — העתק את הטקסט בדיוק כמו שהוא מופיע.',
+      '- unit: היחידה שליד אותה כמות. ערכים אפשריים: יח\u0027 , ש\u0022ע , ק\u0022ג , מ\u05f3 , מ\u0022ר.',
+      '- date: התאריך שליד "ת. פתיחה". בדף הוא בפורמט DD/MM/YY. החזר בפורמט YYYY-MM-DD (שנה 26 = 2026).',
+      '- orderNumber: המספר שליד "הזמנה" (למשל SO26S000055). אם אין, החזר מחרוזת ריקה.',
+      '- orderRow: המספר שליד "שורה". אם אין, החזר מחרוזת ריקה.',
+      '- אם שדה כלשהו לא נקרא בבירור, החזר עבורו מחרוזת ריקה. אל תמציא ערכים.'
+    ].join('\n');
+
+    const parsed = await callClaude(base64, prompt);
+
+    return {
+      pka: parsed.pka || '',
+      desc: parsed.desc || '',
+      sku: parsed.sku || '',
+      qty: parseQtyText(parsed.qtyRaw !== undefined ? parsed.qtyRaw : parsed.qty),
+      unit: parsed.unit || "יח'",
+      date: /^\d{4}-\d{2}-\d{2}$/.test(parsed.date || '') ? parsed.date : todayStr(),
+      orderNumber: parsed.orderNumber || '',
+      orderRow: parsed.orderRow || ''
+    };
+  }
+
+  async function extractSkus(base64){
+    const prompt = [
+      'זהו צילום של מסמך ממפעל ישראלי (דגניה תעשיות) שמכיל מק\u0022טים ותיאורי מוצר.',
+      'חלץ את כל השורות שיש בהן מק\u0022ט ותאור מוצר. החזר JSON בלבד, ללא טקסט נוסף וללא סימני קוד:',
+      '{"items":[{"sku":"","desc":""}]}',
+      '',
+      'הנחיות:',
+      '- sku: מספר המק\u0022ט (למשל 986X10900104 או 924553).',
+      '- desc: תאור המוצר שמופיע לצד אותו מק\u0022ט באותה שורה.',
+      '- אל תכלול שורות של שעות עבודה (מק\u0022ט שמתחיל ב-01105 או תאור שמתחיל ב"שעת עבודה").',
+      '- אל תכלול כמויות, יחידות או מספרי שורה — רק מק\u0022ט ותאור.',
+      '- אל תמציא ערכים. אם לא זוהה כלום, החזר {"items":[]}.',
+      '- עד 20 שורות לכל היותר.'
+    ].join('\n');
+
+    const parsed = await callClaude(base64, prompt);
+    const arr = Array.isArray(parsed.items) ? parsed.items : [];
+    return arr
+      .map(r => ({ sku: (r.sku || '').toString().trim(), desc: (r.desc || '').toString().trim() }))
+      .filter(r => r.sku || r.desc)
+      .slice(0, 20);
+  }
+
+  /* ---------- scanned sku picker ---------- */
+
+  function renderSkuPick(){
+    skuPickList.innerHTML = scannedSkus.map((r, i) => {
+      return '<div class="qty-entry">' +
+        '<div class="qe-head">' +
+          '<label style="display:flex;align-items:center;gap:9px;cursor:pointer;">' +
+            '<input type="checkbox" data-pick="' + i + '" checked style="width:19px;height:19px;accent-color:var(--olive);">' +
+            '<span class="pka-number">' + escapeHtml(r.sku) + '</span>' +
+          '</label>' +
+        '</div>' +
+        '<div class="qe-desc">' + escapeHtml(r.desc) + '</div>' +
+        '<div class="qe-input-row">' +
+          '<input type="number" min="0" step="0.001" data-pickqty="' + i + '" placeholder="כמות" inputmode="decimal">' +
+          '<span class="qe-unit">יח\u0027</span>' +
+        '</div></div>';
+    }).join('');
+  }
+
+  document.getElementById('skuPickCancelBtn').addEventListener('click', () => { skuPickOverlay.hidden = true; });
+  skuPickOverlay.addEventListener('click', (e) => { if(e.target === skuPickOverlay) skuPickOverlay.hidden = true; });
+
+  document.getElementById('skuPickAddBtn').addEventListener('click', () => {
+    let added = 0;
+    scannedSkus.forEach((r, i) => {
+      const cb = skuPickList.querySelector('input[data-pick="' + i + '"]');
+      if(!cb || !cb.checked) return;
+      const qi = skuPickList.querySelector('input[data-pickqty="' + i + '"]');
+      const raw = qi ? qi.value.trim() : '';
+      const qty = raw === '' ? null : normalizeQty(parseFloat(raw));
+      items.push({
+        id: uid(), kind:'sku', pka:'', sku:r.sku, desc:r.desc,
+        qty: qty, unit:"יח'", date: todayStr(),
+        orderNumber:'', orderRow:'', done:false, paintedQty:0, v:2
+      });
+      added++;
+    });
+    if(added === 0){ skuPickOverlay.hidden = true; return; }
+    saveData();
+    skuPickOverlay.hidden = true;
+    currentKind = 'sku';
+    document.querySelectorAll('.main-tab').forEach(t => t.classList.toggle('active', t.dataset.kind === 'sku'));
+    applyKindChrome();
+    render();
+  });
+
+  /* ---------- painted flow ---------- */
+
+  paintedBtn.addEventListener('click', () => {
+    selectedIds = [];
+    renderSelectList();
+    selectOverlay.hidden = false;
+  });
+
+  function renderSelectList(){
+    const open = items.filter(i => !i.done);
+    selectEmptyEl.hidden = open.length > 0;
+    selectNextBtn.disabled = selectedIds.length === 0;
+
+    const groups = [
+      { kind:'pka', label:'פקעות' },
+      { kind:'sku', label:'מק״טים' }
+    ];
+
+    let html = '';
+    groups.forEach(g => {
+      const rows = open.filter(i => i.kind === g.kind);
+      if(rows.length === 0) return;
+      html += '<div class="group-label">' + g.label + '</div>';
+      html += rows.map(it => {
+        const checked = selectedIds.includes(it.id);
+        const rem = remainingOf(it);
+        const short = it.kind === 'pka' ? orderShort(it.orderNumber) : '';
+        const bits = [];
+        if(rem !== null) bits.push('נותר ' + trimNum(rem) + ' ' + (it.unit || ''));
+        if(short) bits.push('הזמנה ' + short);
+        return '<label class="select-row' + (checked ? ' selected' : '') + '">' +
+          '<input type="checkbox" data-id="' + it.id + '"' + (checked ? ' checked' : '') + '>' +
+          '<div><span class="pka-number">' + escapeHtml(labelOf(it)) + '</span>' +
+          '<div class="sr-desc">' + escapeHtml(it.desc) + '</div>' +
+          (bits.length ? '<div class="sr-meta">' + escapeHtml(bits.join(' · ')) + '</div>' : '') +
+          '</div></label>';
+      }).join('');
+    });
+
+    selectListEl.innerHTML = html;
+  }
+
+  selectListEl.addEventListener('change', (e) => {
+    const cb = e.target.closest('input[type=checkbox]');
+    if(!cb) return;
+    const id = cb.dataset.id;
+    if(cb.checked){
+      if(!selectedIds.includes(id)) selectedIds.push(id);
+    }else{
+      selectedIds = selectedIds.filter(x => x !== id);
+    }
+    renderSelectList();
+  });
+
+  document.getElementById('selectCancelBtn').addEventListener('click', () => { selectOverlay.hidden = true; });
+  selectOverlay.addEventListener('click', (e) => { if(e.target === selectOverlay) selectOverlay.hidden = true; });
+
+  selectNextBtn.addEventListener('click', () => {
+    selectOverlay.hidden = true;
+    renderQtyList();
+    qtyOverlay.hidden = false;
+  });
+
+  function renderQtyList(){
+    qtyListEl.innerHTML = selectedIds.map(id => {
+      const it = items.find(i => i.id === id);
+      if(!it) return '';
+      const rem = remainingOf(it);
+      const fillBtn = (rem === null || rem <= 0) ? '' :
+        '<button class="qe-fill" data-fill="' + it.id + '" data-val="' + rem + '">הכול (' + trimNum(rem) + ')</button>';
+      return '<div class="qty-entry">' +
+        '<div class="qe-head"><span class="pka-number">' + escapeHtml(labelOf(it)) + '</span>' +
+        (rem === null ? '' : '<span class="qe-unit">נותר ' + trimNum(rem) + '</span>') + '</div>' +
+        '<div class="qe-desc">' + escapeHtml(it.desc) + '</div>' +
+        '<div class="qe-input-row">' +
+          '<input type="number" min="0" step="0.001" data-qty="' + it.id + '" placeholder="0" inputmode="decimal">' +
+          '<span class="qe-unit">' + escapeHtml(it.unit || '') + '</span>' +
+          fillBtn +
+        '</div></div>';
+    }).join('');
+  }
+
+  qtyListEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-fill]');
+    if(!btn) return;
+    const input = qtyListEl.querySelector('input[data-qty="' + btn.dataset.fill + '"]');
+    if(input) input.value = btn.dataset.val;
+  });
+
+  document.getElementById('qtyBackBtn').addEventListener('click', () => {
+    qtyOverlay.hidden = true;
+    renderSelectList();
+    selectOverlay.hidden = false;
+  });
+
+  document.getElementById('qtyDoneBtn').addEventListener('click', () => {
+    const lines = [];
+
+    selectedIds.forEach(id => {
+      const it = items.find(i => i.id === id);
+      if(!it) return;
+      const input = qtyListEl.querySelector('input[data-qty="' + id + '"]');
+      const val = input ? parseFloat(input.value) : NaN;
+      if(isNaN(val) || val <= 0) return;
+
+      it.paintedQty = (Number(it.paintedQty) || 0) + val;
+      const rem = remainingOf(it);
+      if(rem !== null && rem <= 0) it.done = true;
+
+      lines.push(labelOf(it) + ' - ' + trimNum(val) + ' ' + (it.unit || ''));
+    });
+
+    if(lines.length === 0){
+      const first = qtyListEl.querySelector('input[data-qty]');
+      if(first) first.focus();
+      return;
+    }
+
+    saveData();
+    render();
+
+    qtyOverlay.hidden = true;
+    summaryBox.textContent = lines.join('\n');
+    copyBtn.textContent = 'העתקת הטקסט';
+    copyBtn.classList.remove('copied');
+    summaryOverlay.hidden = false;
+  });
+
+  document.getElementById('summaryCloseBtn').addEventListener('click', () => { summaryOverlay.hidden = true; });
+
+  copyBtn.addEventListener('click', async () => {
+    const text = summaryBox.textContent;
+    let ok = false;
+    try{
+      await navigator.clipboard.writeText(text);
+      ok = true;
+    }catch(e){
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try{ ok = document.execCommand('copy'); }catch(e2){ ok = false; }
+      document.body.removeChild(ta);
+    }
+    copyBtn.textContent = ok ? '✓ הועתק' : 'ההעתקה נכשלה — סמן והעתק ידנית';
+    if(ok) copyBtn.classList.add('copied');
+    setTimeout(() => {
+      copyBtn.textContent = 'העתקת הטקסט';
+      copyBtn.classList.remove('copied');
+    }, 2500);
+  });
+
+  applyKindChrome();
+  loadData();
+})();
+</script>
+
+</body>
+</html>
