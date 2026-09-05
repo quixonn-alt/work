@@ -70,6 +70,19 @@
 
   .tag-header h1{ font-size:1.25rem; font-weight:800; }
 
+  .header-row{ display:flex; align-items:center; justify-content:space-between; }
+
+  .history-btn{
+    background:none;
+    border:none;
+    font-size:1.15rem;
+    line-height:1;
+    padding:6px;
+    margin:-6px;
+    color:var(--ink-soft);
+    cursor:pointer;
+  }
+
   .main-tabs{ display:flex; gap:22px; margin-top:12px; }
 
   .main-tab{
@@ -490,13 +503,56 @@
 
   #copyBtn.copied{ background:var(--olive); }
 
+  .history-date{
+    font-size:0.78rem;
+    font-weight:700;
+    color:var(--ink-soft);
+    margin:14px 0 6px;
+  }
+  .history-date:first-child{ margin-top:0; }
+
+  .history-entry{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    gap:10px;
+    background:var(--card);
+    border:1px solid var(--card-edge);
+    border-radius:3px;
+    padding:8px 11px;
+    margin-bottom:6px;
+  }
+
+  .history-entry .he-main{ min-width:0; }
+  .history-entry .he-label{ font-weight:700; font-size:0.9rem; }
+  .history-entry .he-desc{ font-size:0.8rem; color:var(--ink-soft); margin-top:2px; }
+  .history-entry .he-right{ text-align:left; flex-shrink:0; }
+  .history-entry .he-qty{
+    font-family:'JetBrains Mono', monospace;
+    direction:ltr; unicode-bidi:embed;
+    font-weight:700;
+    font-size:0.88rem;
+    color:var(--olive-dark);
+    white-space:nowrap;
+  }
+  .history-entry .he-time{
+    font-family:'JetBrains Mono', monospace;
+    direction:ltr; unicode-bidi:embed;
+    font-size:0.76rem;
+    color:var(--ink-soft);
+    margin-top:2px;
+  }
+
   [hidden]{ display:none !important; }
 </style>
 </head>
 <body>
 
   <div class="tag-header">
-    <h1>פקעות</h1>
+    <div class="header-row">
+      <h1>פקעות</h1>
+      <button id="historyBtn" class="history-btn" aria-label="היסטוריית דיווחים">🕘</button>
+    </div>
     <div class="main-tabs">
       <button class="main-tab active" data-kind="pka">פקעות</button>
       <button class="main-tab" data-kind="sku">מק״טים</button>
@@ -644,6 +700,18 @@
     </div>
   </div>
 
+  <div id="historyOverlay" class="modal-overlay" hidden>
+    <div class="modal">
+      <h2>היסטוריית דיווחים</h2>
+      <p class="modal-sub">מה נצבע ומתי</p>
+      <div id="historyList"></div>
+      <div id="historyEmpty" class="status-msg" hidden>עדיין אין דיווחים</div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" id="historyCloseBtn">סגירה</button>
+      </div>
+    </div>
+  </div>
+
   <div id="summaryOverlay" class="modal-overlay" hidden>
     <div class="modal">
       <h2>סיכום צביעה</h2>
@@ -659,6 +727,7 @@
 <script>
 (function(){
   let items = [];
+  let history = [];
   let currentKind = 'pka';
   let filter = 'all';
   let searchTerm = '';
@@ -710,6 +779,11 @@
 
   const qtyOverlay = document.getElementById('qtyOverlay');
   const qtyListEl = document.getElementById('qtyList');
+
+  const historyBtn = document.getElementById('historyBtn');
+  const historyOverlay = document.getElementById('historyOverlay');
+  const historyListEl = document.getElementById('historyList');
+  const historyEmptyEl = document.getElementById('historyEmpty');
 
   const summaryOverlay = document.getElementById('summaryOverlay');
   const summaryBox = document.getElementById('summaryBox');
@@ -813,6 +887,21 @@
   async function saveData(){
     try{
       localStorage.setItem('work-orders-list', JSON.stringify(items));
+    }catch(e){ showSaveError(); }
+  }
+
+  function loadHistory(){
+    try{
+      const raw = localStorage.getItem('work-orders-history');
+      history = raw ? JSON.parse(raw) : [];
+    }catch(e){
+      history = [];
+    }
+  }
+
+  function saveHistory(){
+    try{
+      localStorage.setItem('work-orders-history', JSON.stringify(history));
     }catch(e){ showSaveError(); }
   }
 
@@ -1315,6 +1404,7 @@
 
   document.getElementById('qtyDoneBtn').addEventListener('click', () => {
     const lines = [];
+    const ts = new Date().toISOString();
 
     selectedIds.forEach(id => {
       const it = items.find(i => i.id === id);
@@ -1328,6 +1418,16 @@
       if(rem !== null && rem <= 0) it.done = true;
 
       lines.push(labelOf(it) + ' - ' + trimNum(val) + ' ' + (it.unit || ''));
+
+      history.push({
+        id: uid(),
+        ts: ts,
+        kind: it.kind,
+        label: labelOf(it),
+        desc: it.desc,
+        qty: val,
+        unit: it.unit || ''
+      });
     });
 
     if(lines.length === 0){
@@ -1337,6 +1437,7 @@
     }
 
     saveData();
+    saveHistory();
     render();
 
     qtyOverlay.hidden = true;
@@ -1347,6 +1448,49 @@
   });
 
   document.getElementById('summaryCloseBtn').addEventListener('click', () => { summaryOverlay.hidden = true; });
+
+  /* ---------- history ---------- */
+
+  function renderHistory(){
+    const sorted = [...history].sort((a,b) => (b.ts||'').localeCompare(a.ts||''));
+
+    if(sorted.length === 0){
+      historyListEl.innerHTML = '';
+      historyEmptyEl.hidden = false;
+      return;
+    }
+    historyEmptyEl.hidden = true;
+
+    let html = '';
+    let lastDate = null;
+    sorted.forEach(h => {
+      const d = h.ts ? new Date(h.ts) : null;
+      const dateStr = d ? d.toLocaleDateString('he-IL') : '';
+      const timeStr = d ? d.toLocaleTimeString('he-IL', { hour:'2-digit', minute:'2-digit' }) : '';
+      if(dateStr !== lastDate){
+        html += '<div class="history-date">' + escapeHtml(dateStr) + '</div>';
+        lastDate = dateStr;
+      }
+      html += '<div class="history-entry">' +
+        '<div class="he-main">' +
+          '<div class="he-label">' + escapeHtml(h.label || '') + '</div>' +
+          '<div class="he-desc">' + escapeHtml(h.desc || '') + '</div>' +
+        '</div>' +
+        '<div class="he-right">' +
+          '<div class="he-qty">' + trimNum(h.qty) + ' ' + escapeHtml(h.unit || '') + '</div>' +
+          '<div class="he-time">' + escapeHtml(timeStr) + '</div>' +
+        '</div>' +
+      '</div>';
+    });
+    historyListEl.innerHTML = html;
+  }
+
+  historyBtn.addEventListener('click', () => {
+    renderHistory();
+    historyOverlay.hidden = false;
+  });
+  document.getElementById('historyCloseBtn').addEventListener('click', () => { historyOverlay.hidden = true; });
+  historyOverlay.addEventListener('click', (e) => { if(e.target === historyOverlay) historyOverlay.hidden = true; });
 
   copyBtn.addEventListener('click', async () => {
     const text = summaryBox.textContent;
@@ -1374,6 +1518,7 @@
 
   applyKindChrome();
   loadData();
+  loadHistory();
 
   if('serviceWorker' in navigator){
     window.addEventListener('load', () => {

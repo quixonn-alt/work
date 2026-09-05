@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pkaot-v1';
+const CACHE_NAME = 'pkaot-v2';
 const APP_SHELL = [
   './',
   './index.html',
