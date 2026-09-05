@@ -78,6 +78,106 @@
   }
   .history-btn:active{ background:var(--yellow); }
 
+  .header-actions{ display:flex; gap:8px; }
+
+  .menu-btn{
+    background:var(--hi);
+    color:var(--ink);
+    border:none;
+    height:52px;
+    width:52px;
+    font-size:1.5rem;
+    line-height:1;
+    cursor:pointer;
+  }
+  .menu-btn:active{ background:var(--yellow); }
+
+  /* ---------- drawer ---------- */
+
+  .drawer-overlay{
+    position:fixed; inset:0;
+    background:rgba(0,0,0,0.6);
+    display:flex;
+    justify-content:flex-start;
+    z-index:30;
+  }
+
+  .drawer{
+    background:var(--ink);
+    width:min(78vw, 320px);
+    height:100%;
+    padding:16px 14px calc(16px + env(safe-area-inset-bottom));
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    overflow-y:auto;
+    animation:drawer-in .18s ease-out;
+  }
+
+  @keyframes drawer-in{ from{ transform:translateX(-12%); } }
+  @media (prefers-reduced-motion:reduce){ .drawer{ animation:none; } }
+
+  .drawer-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+  .drawer-head h2{ color:#fff; font-size:1.5rem; }
+
+  .drawer-close{
+    background:none;
+    border:none;
+    color:#fff;
+    font-size:2.2rem;
+    line-height:1;
+    width:48px; height:48px;
+    cursor:pointer;
+  }
+
+  .drawer-item{
+    width:100%;
+    min-height:64px;
+    background:#fff;
+    color:var(--ink);
+    border:3px solid #fff;
+    border-radius:0;
+    font-family:var(--font-display);
+    font-size:1.15rem;
+    font-weight:900;
+    text-align:right;
+    padding:0 16px;
+    cursor:pointer;
+  }
+  .drawer-item:active{ background:var(--hi); border-color:var(--hi); }
+
+  /* ---------- paint stock ---------- */
+
+  .paint-row{
+    background:var(--surface);
+    border:3px solid var(--ink);
+    padding:12px;
+    margin-bottom:10px;
+  }
+
+  .paint-name{ font-family:var(--font-display); font-size:1.05rem; font-weight:900; margin-bottom:10px; }
+  .paint-row .qe-input-row{ margin-top:0; }
+
+  .paint-row input{
+    flex:1;
+    min-width:0;
+    height:64px;
+    border:3px solid var(--ink);
+    border-radius:0;
+    font-family:var(--font-mono);
+    direction:ltr;
+    text-align:center;
+    font-size:1.5rem;
+    font-weight:800;
+    background:var(--surface);
+    color:var(--ink);
+    outline:none;
+  }
+  .paint-row input:focus{ box-shadow:-3px 3px 0 var(--hi); }
+
+  #paintSaveBtn.dirty{ background:var(--hi); }
+  #paintSaveBtn.saved{ background:var(--go); }
+
   .main-tabs{ display:flex; margin-top:14px; }
 
   .main-tab{
@@ -670,7 +770,10 @@
   <header class="app-header">
     <div class="header-row">
       <h1>פקעות</h1>
-      <button id="historyBtn" class="history-btn" aria-label="דוחות והיסטוריית דיווחים">דו״חות</button>
+      <div class="header-actions">
+        <button id="historyBtn" class="history-btn" aria-label="דוחות והיסטוריית דיווחים">דו״חות</button>
+        <button id="menuBtn" class="menu-btn" aria-label="תפריט">☰</button>
+      </div>
     </div>
     <div class="main-tabs">
       <button class="main-tab active" data-kind="pka">פקעות</button>
@@ -820,6 +923,29 @@
     </div>
   </div>
 
+  <div id="drawerOverlay" class="drawer-overlay" hidden>
+    <nav class="drawer">
+      <div class="drawer-head">
+        <h2>תפריט</h2>
+        <button id="drawerCloseBtn" class="drawer-close" aria-label="סגירה">×</button>
+      </div>
+      <button class="drawer-item" id="paintMenuBtn">מלאי צבע</button>
+      <button class="drawer-item" id="exportMenuBtn">ייצוא לאקסל</button>
+    </nav>
+  </div>
+
+  <div id="paintOverlay" class="modal-overlay" hidden>
+    <div class="modal">
+      <h2>מלאי צבע</h2>
+      <p class="modal-sub">עדכן את הכמויות ולחץ שמירה</p>
+      <div id="paintList"></div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" id="paintCloseBtn">סגירה</button>
+        <button class="btn btn-green" id="paintSaveBtn">שמירה</button>
+      </div>
+    </div>
+  </div>
+
   <div id="cartsOverlay" class="modal-overlay" hidden>
     <div class="modal">
       <h2>כמות עגלות?</h2>
@@ -875,6 +1001,8 @@
   let items = [];
   let history = [];
   let carts = [];
+  let paint = {};
+  let paintDraft = {};
   let pendingPaintEntries = [];
   let currentKind = 'pka';
   let filter = 'all';
@@ -1077,6 +1205,37 @@
     try{
       localStorage.setItem('work-orders-carts', JSON.stringify(carts));
     }catch(e){ showSaveError(); }
+  }
+
+  /* Paint stock — four fixed components, counted in containers. */
+  const PAINT_COMPONENTS = [
+    { id:'primer',        name:'צבע יסוד' },
+    { id:'green',         name:'צבע ירוק' },
+    { id:'primerThinner', name:'טינר לצבע יסוד' },
+    { id:'greenThinner',  name:'טינר לצבע ירוק' }
+  ];
+
+  function loadPaint(){
+    try{
+      const raw = localStorage.getItem('work-orders-paint');
+      paint = raw ? JSON.parse(raw) : {};
+    }catch(e){
+      paint = {};
+    }
+    PAINT_COMPONENTS.forEach(c => {
+      const n = Number(paint[c.id]);
+      paint[c.id] = isNaN(n) || n < 0 ? 0 : n;
+    });
+  }
+
+  function savePaint(){
+    try{
+      localStorage.setItem('work-orders-paint', JSON.stringify(paint));
+      return true;
+    }catch(e){
+      showSaveError();
+      return false;
+    }
   }
 
   const HEBREW_MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
@@ -1801,6 +1960,465 @@
     setTimeout(() => { btn.textContent = 'העתקה'; }, 2000);
   });
 
+  /* ---------- excel export ----------
+     Writes a real .xlsx with no dependencies: the workbook parts are plain
+     XML, packed into a ZIP with stored (uncompressed) entries. */
+
+  const XLSX_CRC_TABLE = (function(){
+    const t = [];
+    for(let n = 0; n < 256; n++){
+      let c = n;
+      for(let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      t[n] = c >>> 0;
+    }
+    return t;
+  })();
+
+  function crc32(bytes){
+    let c = 0xFFFFFFFF;
+    for(let i = 0; i < bytes.length; i++) c = XLSX_CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+
+  function zipStore(files){
+    const enc = new TextEncoder();
+    const parts = [];
+    const central = [];
+    let offset = 0;
+
+    files.forEach(f => {
+      const nameBytes = enc.encode(f.name);
+      const data = enc.encode(f.content);
+      const crc = crc32(data);
+
+      const local = new Uint8Array(30 + nameBytes.length);
+      const lv = new DataView(local.buffer);
+      lv.setUint32(0, 0x04034b50, true);
+      lv.setUint16(4, 20, true);
+      lv.setUint16(6, 0, true);
+      lv.setUint16(8, 0, true);
+      lv.setUint16(10, 0, true);
+      lv.setUint16(12, 0, true);
+      lv.setUint32(14, crc, true);
+      lv.setUint32(18, data.length, true);
+      lv.setUint32(22, data.length, true);
+      lv.setUint16(26, nameBytes.length, true);
+      lv.setUint16(28, 0, true);
+      local.set(nameBytes, 30);
+
+      const cd = new Uint8Array(46 + nameBytes.length);
+      const cv = new DataView(cd.buffer);
+      cv.setUint32(0, 0x02014b50, true);
+      cv.setUint16(4, 20, true);
+      cv.setUint16(6, 20, true);
+      cv.setUint16(8, 0, true);
+      cv.setUint16(10, 0, true);
+      cv.setUint16(12, 0, true);
+      cv.setUint16(14, 0, true);
+      cv.setUint32(16, crc, true);
+      cv.setUint32(20, data.length, true);
+      cv.setUint32(24, data.length, true);
+      cv.setUint16(28, nameBytes.length, true);
+      cv.setUint16(30, 0, true);
+      cv.setUint16(32, 0, true);
+      cv.setUint16(34, 0, true);
+      cv.setUint16(36, 0, true);
+      cv.setUint32(38, 0, true);
+      cv.setUint32(42, offset, true);
+      cd.set(nameBytes, 46);
+
+      parts.push(local, data);
+      central.push(cd);
+      offset += local.length + data.length;
+    });
+
+    const cdSize = central.reduce((s, c) => s + c.length, 0);
+    const end = new Uint8Array(22);
+    const ev = new DataView(end.buffer);
+    ev.setUint32(0, 0x06054b50, true);
+    ev.setUint16(8, files.length, true);
+    ev.setUint16(10, files.length, true);
+    ev.setUint32(12, cdSize, true);
+    ev.setUint32(16, offset, true);
+
+    const all = parts.concat(central, [end]);
+    const total = all.reduce((s, p) => s + p.length, 0);
+    const out = new Uint8Array(total);
+    let pos = 0;
+    all.forEach(p => { out.set(p, pos); pos += p.length; });
+    return out;
+  }
+
+  function escapeXml(v){
+    return String(v == null ? '' : v)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+  }
+
+  function colLetter(n){
+    let s = '';
+    while(n > 0){
+      const r = (n - 1) % 26;
+      s = String.fromCharCode(65 + r) + s;
+      n = Math.floor((n - 1) / 26);
+    }
+    return s;
+  }
+
+  /* Excel serial date: days since 1899-12-30, taken from the local Y/M/D. */
+  function dateSerial(d){
+    return Math.floor((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - Date.UTC(1899, 11, 30)) / 86400000);
+  }
+
+  /* 'YYYY-MM-DD' must be read as a local calendar day — new Date(str) would
+     read it as UTC midnight and land on the previous day west of UTC. */
+  function parseDateOnly(s){
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s || ''));
+    return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+  }
+
+  /* A cell is {v, t}: 's' text, 'n' number, 'd' date, 'h' heading. */
+  function cTxt(v){ return { v:v, t:'s' }; }
+  function cNum(v){ return { v:(v === null || v === undefined || v === '' ? null : Number(v)), t:'n' }; }
+  function cDate(v){ return { v:v, t:'d' }; }
+  function cHead(v){ return { v:v, t:'h' }; }
+
+  function sheetXml(sheet){
+    const rows = sheet.rows.map((cells, ri) => {
+      const r = ri + 1;
+      const cs = cells.map((cell, ci) => {
+        if(!cell || cell.v === null || cell.v === undefined || cell.v === '') return '';
+        const ref = colLetter(ci + 1) + r;
+        if(cell.t === 'n') return '<c r="' + ref + '"><v>' + Number(cell.v) + '</v></c>';
+        if(cell.t === 'd') return '<c r="' + ref + '" s="2"><v>' + dateSerial(cell.v) + '</v></c>';
+        const style = cell.t === 'h' ? ' s="1"' : '';
+        return '<c r="' + ref + '"' + style + ' t="inlineStr"><is><t xml:space="preserve">' + escapeXml(cell.v) + '</t></is></c>';
+      }).join('');
+      return '<row r="' + r + '">' + cs + '</row>';
+    }).join('');
+
+    const cols = (sheet.widths || []).map((w, i) =>
+      '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>').join('');
+
+    const lastCol = colLetter(Math.max(1, (sheet.widths || []).length));
+    const pane = sheet.frozen ? '<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/>' : '';
+    const filter = sheet.frozen ? '<autoFilter ref="A1:' + lastCol + sheet.rows.length + '"/>' : '';
+
+    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+      '<sheetViews><sheetView rightToLeft="1" workbookViewId="0">' + pane + '</sheetView></sheetViews>' +
+      '<sheetFormatPr defaultRowHeight="15"/>' +
+      (cols ? '<cols>' + cols + '</cols>' : '') +
+      '<sheetData>' + rows + '</sheetData>' +
+      filter +
+      '</worksheet>';
+  }
+
+  function xlsxBytes(sheets){
+    const styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+      '<numFmts count="1"><numFmt numFmtId="164" formatCode="dd/mm/yyyy"/></numFmts>' +
+      '<fonts count="2">' +
+        '<font><sz val="11"/><name val="Arial"/></font>' +
+        '<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Arial"/></font>' +
+      '</fonts>' +
+      '<fills count="3">' +
+        '<fill><patternFill patternType="none"/></fill>' +
+        '<fill><patternFill patternType="gray125"/></fill>' +
+        '<fill><patternFill patternType="solid"><fgColor rgb="FF0B0B0B"/><bgColor indexed="64"/></patternFill></fill>' +
+      '</fills>' +
+      '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>' +
+      '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+      '<cellXfs count="3">' +
+        '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
+        '<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>' +
+        '<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>' +
+      '</cellXfs>' +
+      '</styleSheet>';
+
+    const sheetEntries = sheets.map((s, i) => ({
+      name: 'xl/worksheets/sheet' + (i + 1) + '.xml',
+      content: sheetXml(s)
+    }));
+
+    const contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+      '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+      '<Default Extension="xml" ContentType="application/xml"/>' +
+      '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+      '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
+      sheets.map((s, i) => '<Override PartName="/xl/worksheets/sheet' + (i + 1) + '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>').join('') +
+      '</Types>';
+
+    const rootRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
+      '</Relationships>';
+
+    const workbook = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+      '<sheets>' +
+      sheets.map((s, i) => '<sheet name="' + escapeXml(s.name) + '" sheetId="' + (i + 1) + '" r:id="rId' + (i + 1) + '"/>').join('') +
+      '</sheets></workbook>';
+
+    const workbookRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      sheets.map((s, i) => '<Relationship Id="rId' + (i + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet' + (i + 1) + '.xml"/>').join('') +
+      '<Relationship Id="rId' + (sheets.length + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
+      '</Relationships>';
+
+    return zipStore([
+      { name:'[Content_Types].xml', content:contentTypes },
+      { name:'_rels/.rels', content:rootRels },
+      { name:'xl/workbook.xml', content:workbook },
+      { name:'xl/_rels/workbook.xml.rels', content:workbookRels },
+      { name:'xl/styles.xml', content:styles }
+    ].concat(sheetEntries));
+  }
+
+  function timeStr(d){
+    return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+  }
+
+  function buildReportSheets(){
+    const pkaItems = items.filter(i => i.kind === 'pka');
+    const skuItems = items.filter(i => i.kind === 'sku');
+    const sortedHistory = [...history].sort((a,b) => (a.ts||'').localeCompare(b.ts||''));
+    const sortedCarts = [...carts].sort((a,b) => (a.ts||'').localeCompare(b.ts||''));
+
+    const sumRemaining = items.reduce((s, it) => {
+      const r = it.done ? 0 : remainingOf(it);
+      return s + (r === null ? 0 : r);
+    }, 0);
+    const sumPainted = items.reduce((s, it) => s + (Number(it.paintedQty) || 0), 0);
+    const sumCarts = carts.reduce((s, c) => s + (Number(c.count) || 0), 0);
+
+    const firstReport = sortedHistory.length ? new Date(sortedHistory[0].ts) : null;
+    const lastReport = sortedHistory.length ? new Date(sortedHistory[sortedHistory.length - 1].ts) : null;
+
+    const summary = {
+      name: 'סיכום',
+      widths: [26, 18],
+      rows: [
+        [cHead('דו״ח פקעות'), cHead(' ')],
+        [cTxt('הופק בתאריך'), cDate(new Date())],
+        [],
+        [cTxt('פקעות פתוחות'), cNum(pkaItems.filter(i => !i.done).length)],
+        [cTxt('פקעות שהושלמו'), cNum(pkaItems.filter(i => i.done).length)],
+        [cTxt('מק״טים פתוחים'), cNum(skuItems.filter(i => !i.done).length)],
+        [cTxt('מק״טים שהושלמו'), cNum(skuItems.filter(i => i.done).length)],
+        [],
+        [cTxt('סה״כ כמות שנצבעה'), cNum(sumPainted)],
+        [cTxt('סה״כ נותר לצביעה'), cNum(sumRemaining)],
+        [cTxt('סה״כ עגלות'), cNum(sumCarts)],
+        [],
+        [cTxt('דיווח ראשון'), firstReport ? cDate(firstReport) : cTxt('—')],
+        [cTxt('דיווח אחרון'), lastReport ? cDate(lastReport) : cTxt('—')],
+        [],
+        [cHead('מלאי צבע'), cHead(' ')]
+      ].concat(PAINT_COMPONENTS.map(c => [cTxt(c.name), cNum(paint[c.id])]))
+    };
+
+    const statusOf = (it) => it.done ? 'הושלם' : 'פתוח';
+
+    const pkaSheet = {
+      name: 'פקעות',
+      frozen: true,
+      widths: [12, 16, 16, 34, 16, 8, 10, 10, 10, 9, 11],
+      rows: [[
+        cHead('תאריך'), cHead('מספר פק״ע'), cHead('מק״ט'), cHead('תיאור'), cHead('מספר הזמנה'),
+        cHead('שורה'), cHead('כמות'), cHead('נצבע'), cHead('נותר'), cHead('יחידה'), cHead('סטטוס')
+      ]].concat(pkaItems.map(it => {
+        const rem = remainingOf(it);
+        return [
+          it.date ? cDate(parseDateOnly(it.date)) : cTxt(''),
+          cTxt(it.pka), cTxt(it.sku), cTxt(it.desc), cTxt(it.orderNumber), cTxt(it.orderRow),
+          cNum(it.qty), cNum(it.paintedQty || 0), rem === null ? cTxt('—') : cNum(rem),
+          cTxt(it.unit), cTxt(statusOf(it))
+        ];
+      }))
+    };
+
+    const skuSheet = {
+      name: 'מק״טים',
+      frozen: true,
+      widths: [12, 16, 34, 10, 10, 10, 9, 11],
+      rows: [[
+        cHead('תאריך'), cHead('מק״ט'), cHead('תיאור'), cHead('כמות'),
+        cHead('נצבע'), cHead('נותר'), cHead('יחידה'), cHead('סטטוס')
+      ]].concat(skuItems.map(it => {
+        const rem = remainingOf(it);
+        return [
+          it.date ? cDate(parseDateOnly(it.date)) : cTxt(''),
+          cTxt(it.sku), cTxt(it.desc),
+          cNum(it.qty), cNum(it.paintedQty || 0), rem === null ? cTxt('—') : cNum(rem),
+          cTxt(it.unit), cTxt(statusOf(it))
+        ];
+      }))
+    };
+
+    const logSheet = {
+      name: 'דיווחי צביעה',
+      frozen: true,
+      widths: [12, 8, 10, 16, 34, 14, 9],
+      rows: [[
+        cHead('תאריך'), cHead('שעה'), cHead('סוג'), cHead('מזהה'),
+        cHead('תיאור'), cHead('כמות שנצבעה'), cHead('יחידה')
+      ]].concat(sortedHistory.map(h => {
+        const d = h.ts ? new Date(h.ts) : null;
+        return [
+          d ? cDate(d) : cTxt(''), d ? cTxt(timeStr(d)) : cTxt(''),
+          cTxt(h.kind === 'sku' ? 'מק״ט' : 'פק״ע'),
+          cTxt(h.label), cTxt(h.desc), cNum(h.qty), cTxt(h.unit)
+        ];
+      }))
+    };
+
+    const cartsSheet = {
+      name: 'עגלות',
+      frozen: true,
+      widths: [12, 8, 14],
+      rows: [[cHead('תאריך'), cHead('שעה'), cHead('כמות עגלות')]]
+        .concat(sortedCarts.map(c => {
+          const d = c.ts ? new Date(c.ts) : null;
+          return [d ? cDate(d) : cTxt(''), d ? cTxt(timeStr(d)) : cTxt(''), cNum(c.count)];
+        }))
+    };
+
+    const totals = cartTotalsByMonth();
+    const monthSheet = {
+      name: 'עגלות לפי חודש',
+      frozen: true,
+      widths: [18, 14],
+      rows: [[cHead('חודש'), cHead('סה״כ עגלות')]]
+        .concat(Object.keys(totals).sort().map(k => [cTxt(monthLabel(k)), cNum(totals[k])]))
+    };
+
+    const paintSheet = {
+      name: 'מלאי צבע',
+      frozen: true,
+      widths: [22, 12],
+      rows: [[cHead('רכיב'), cHead('כמות')]]
+        .concat(PAINT_COMPONENTS.map(c => [cTxt(c.name), cNum(paint[c.id])]))
+    };
+
+    return [summary, pkaSheet, skuSheet, logSheet, cartsSheet, monthSheet, paintSheet];
+  }
+
+  function exportToExcel(){
+    try{
+      const bytes = xlsxBytes(buildReportSheets());
+      const blob = new Blob([bytes], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'pkaot-report-' + todayStr() + '.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      tick(25);
+    }catch(e){
+      statusMsgEl.hidden = false;
+      statusMsgEl.textContent = 'הייצוא נכשל. נסה שוב.';
+      setTimeout(() => { if(dataReady) statusMsgEl.hidden = true; }, 3000);
+    }
+  }
+
+  /* ---------- drawer ---------- */
+
+  const drawerOverlay = document.getElementById('drawerOverlay');
+
+  function closeDrawer(){ drawerOverlay.hidden = true; }
+
+  document.getElementById('menuBtn').addEventListener('click', () => { drawerOverlay.hidden = false; });
+  document.getElementById('drawerCloseBtn').addEventListener('click', closeDrawer);
+  drawerOverlay.addEventListener('click', (e) => { if(e.target === drawerOverlay) closeDrawer(); });
+
+  /* ---------- paint stock ---------- */
+
+  const paintOverlay = document.getElementById('paintOverlay');
+  const paintListEl = document.getElementById('paintList');
+  const paintSaveBtn = document.getElementById('paintSaveBtn');
+
+  function paintIsDirty(){
+    return PAINT_COMPONENTS.some(c => Number(paintDraft[c.id]) !== Number(paint[c.id]));
+  }
+
+  function paintSaveState(){
+    paintSaveBtn.classList.toggle('dirty', paintIsDirty());
+  }
+
+  function renderPaint(){
+    paintListEl.innerHTML = PAINT_COMPONENTS.map(c => {
+      return '<div class="paint-row">' +
+        '<div class="paint-name">' + escapeHtml(c.name) + '</div>' +
+        '<div class="qe-input-row">' +
+          '<button type="button" class="step-btn" data-paintstep="1" data-comp="' + c.id + '" aria-label="עוד">+</button>' +
+          '<input type="number" min="0" step="1" data-paint="' + c.id + '" value="' + trimNum(paintDraft[c.id]) + '" inputmode="decimal">' +
+          '<button type="button" class="step-btn" data-paintstep="-1" data-comp="' + c.id + '" aria-label="פחות">−</button>' +
+        '</div></div>';
+    }).join('');
+    paintSaveState();
+  }
+
+  paintListEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-paintstep]');
+    if(!btn) return;
+    const id = btn.dataset.comp;
+    const next = (Number(paintDraft[id]) || 0) + Number(btn.dataset.paintstep);
+    paintDraft[id] = next < 0 ? 0 : next;
+    const input = paintListEl.querySelector('input[data-paint="' + id + '"]');
+    if(input) input.value = trimNum(paintDraft[id]);
+    paintSaveState();
+    tick(8);
+  });
+
+  paintListEl.addEventListener('input', (e) => {
+    const input = e.target.closest('input[data-paint]');
+    if(!input) return;
+    const n = parseFloat(input.value);
+    paintDraft[input.dataset.paint] = isNaN(n) || n < 0 ? 0 : n;
+    paintSaveState();
+  });
+
+  function openPaint(){
+    paintDraft = {};
+    PAINT_COMPONENTS.forEach(c => { paintDraft[c.id] = paint[c.id]; });
+    paintSaveBtn.textContent = 'שמירה';
+    paintSaveBtn.classList.remove('saved');
+    renderPaint();
+    paintOverlay.hidden = false;
+  }
+
+  document.getElementById('paintMenuBtn').addEventListener('click', () => {
+    closeDrawer();
+    openPaint();
+  });
+
+  document.getElementById('exportMenuBtn').addEventListener('click', () => {
+    closeDrawer();
+    exportToExcel();
+  });
+
+  document.getElementById('paintCloseBtn').addEventListener('click', () => { paintOverlay.hidden = true; });
+
+  paintSaveBtn.addEventListener('click', () => {
+    PAINT_COMPONENTS.forEach(c => { paint[c.id] = Number(paintDraft[c.id]) || 0; });
+    if(!savePaint()) return;
+    tick(25);
+    paintSaveBtn.textContent = '✓ נשמר';
+    paintSaveBtn.classList.remove('dirty');
+    paintSaveBtn.classList.add('saved');
+    setTimeout(() => {
+      paintSaveBtn.textContent = 'שמירה';
+      paintSaveBtn.classList.remove('saved');
+    }, 2000);
+  });
+
   historyBtn.addEventListener('click', () => {
     renderCartsReport();
     renderHistory();
@@ -1823,6 +2441,7 @@
   loadData();
   loadHistory();
   loadCarts();
+  loadPaint();
 
   if('serviceWorker' in navigator){
     window.addEventListener('load', () => {
