@@ -35,16 +35,13 @@
 }
 ```
 
-## שני חסמים לפני שזה יכול לרוץ מחוץ ל-Claude Artifacts
+## חסמים לפני שזה יכול לרוץ מחוץ ל-Claude Artifacts
 
 הקוד נכתב בתוך Claude Artifacts ומסתמך על שני דברים שלא קיימים בדפדפן רגיל.
-**אלה שתי המשימות הראשונות.**
 
-### 1. `window.storage` לא קיים מחוץ ל-Artifacts
+### 1. ~~`window.storage` לא קיים מחוץ ל-Artifacts~~ ✅ פתור
 
-הפונקציות `loadData()` ו-`saveData()` קוראות ל-`window.storage.get/set`.
-צריך להחליף ב-`localStorage` (או IndexedDB אם רוצים גיבוי/ייצוא בהמשך).
-ה-API הפנימי כבר async, אז ההחלפה נקייה.
+`loadData()` ו-`saveData()` עברו ל-`localStorage`.
 
 ### 2. קריאת ה-API לסריקה עובדת בלי מפתח רק בתוך Artifacts
 
@@ -62,9 +59,9 @@ API key — זה עובד רק בסביבת Artifacts.
 
 PWA שמותקנת במסך הבית של הטלפון:
 
-- `manifest.json` + service worker לעבודה offline
-- אייקון
-- hosting ב-HTTPS (GitHub Pages מספיק) — חובה בשביל גישה למצלמה
+- ✅ `manifest.json` + service worker (`sw.js`) לעבודה offline
+- ✅ אייקון (`icon-192.png`, `icon-512.png`, `apple-touch-icon.png`)
+- ✅ hosting ב-HTTPS (GitHub Pages) — חובה בשביל גישה למצלמה
 
 ## עקרונות תכנון
 
