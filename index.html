@@ -65,23 +65,6 @@
 
   .app-header h1{ font-size:2.1rem; line-height:1; color:#fff; }
 
-  .header-actions{ display:flex; align-items:stretch; gap:8px; }
-
-  .count-block{
-    background:var(--hi);
-    color:var(--ink);
-    height:52px;
-    min-width:58px;
-    padding:0 10px;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    justify-content:center;
-    line-height:1;
-  }
-  .count-block .num{ font-size:1.35rem; font-weight:800; }
-  .count-label{ font-size:0.6rem; font-weight:700; margin-top:3px; }
-
   .history-btn{
     background:#fff;
     color:var(--ink);
@@ -687,13 +670,7 @@
   <header class="app-header">
     <div class="header-row">
       <h1>פקעות</h1>
-      <div class="header-actions">
-        <div class="count-block">
-          <span id="openCountNum" class="num">0</span>
-          <span class="count-label">פתוחים</span>
-        </div>
-        <button id="historyBtn" class="history-btn" aria-label="דוחות והיסטוריית דיווחים">דו״חות</button>
-      </div>
+      <button id="historyBtn" class="history-btn" aria-label="דוחות והיסטוריית דיווחים">דו״חות</button>
     </div>
     <div class="main-tabs">
       <button class="main-tab active" data-kind="pka">פקעות</button>
@@ -953,7 +930,6 @@
 
   const cartsOverlay = document.getElementById('cartsOverlay');
   const cartsInput = document.getElementById('f-carts');
-  const openCountNum = document.getElementById('openCountNum');
 
   const historyBtn = document.getElementById('historyBtn');
   const historyOverlay = document.getElementById('historyOverlay');
@@ -1155,7 +1131,6 @@
 
   function render(){
     paintedBtn.disabled = items.filter(i => !i.done).length === 0;
-    openCountNum.textContent = items.filter(i => i.kind === currentKind && !i.done).length;
 
     let visible = items.filter(it => {
       if(it.kind !== currentKind) return false;
