@@ -503,6 +503,26 @@
 
   #copyBtn.copied{ background:var(--olive); }
 
+  .cart-month-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    background:var(--card);
+    border:1px solid var(--card-edge);
+    border-radius:3px;
+    padding:9px 12px;
+    margin-bottom:6px;
+  }
+  .cmr-label{ font-weight:700; font-size:0.9rem; }
+  .cmr-total{
+    font-family:'JetBrains Mono', monospace;
+    direction:ltr; unicode-bidi:embed;
+    font-size:0.82rem;
+    color:var(--ink-soft);
+    margin-top:2px;
+  }
+
   .history-date{
     font-size:0.78rem;
     font-weight:700;
@@ -700,10 +720,32 @@
     </div>
   </div>
 
+  <div id="cartsOverlay" class="modal-overlay" hidden>
+    <div class="modal">
+      <h2>כמות עגלות?</h2>
+      <p class="modal-sub">כמה עגלות נעשו בסבב הזה — אפשר לדלג אם לא רלוונטי</p>
+      <div class="field">
+        <label for="f-carts">מספר עגלות</label>
+        <input type="number" id="f-carts" min="0" step="1" placeholder="0" inputmode="numeric">
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" id="cartsSkipBtn">דלג</button>
+        <button class="btn btn-green" id="cartsDoneBtn">המשך</button>
+      </div>
+    </div>
+  </div>
+
   <div id="historyOverlay" class="modal-overlay" hidden>
     <div class="modal">
       <h2>היסטוריית דיווחים</h2>
       <p class="modal-sub">מה נצבע ומתי</p>
+
+      <div id="cartsReportSection" hidden>
+        <div class="section-label">דו"ח עגלות חודשי</div>
+        <div id="cartsReportList"></div>
+      </div>
+
+      <div class="section-label">פירוט צביעה</div>
       <div id="historyList"></div>
       <div id="historyEmpty" class="status-msg" hidden>עדיין אין דיווחים</div>
       <div class="modal-actions">
@@ -728,6 +770,8 @@
 (function(){
   let items = [];
   let history = [];
+  let carts = [];
+  let pendingPaintEntries = [];
   let currentKind = 'pka';
   let filter = 'all';
   let searchTerm = '';
@@ -780,10 +824,15 @@
   const qtyOverlay = document.getElementById('qtyOverlay');
   const qtyListEl = document.getElementById('qtyList');
 
+  const cartsOverlay = document.getElementById('cartsOverlay');
+  const cartsInput = document.getElementById('f-carts');
+
   const historyBtn = document.getElementById('historyBtn');
   const historyOverlay = document.getElementById('historyOverlay');
   const historyListEl = document.getElementById('historyList');
   const historyEmptyEl = document.getElementById('historyEmpty');
+  const cartsReportSection = document.getElementById('cartsReportSection');
+  const cartsReportList = document.getElementById('cartsReportList');
 
   const summaryOverlay = document.getElementById('summaryOverlay');
   const summaryBox = document.getElementById('summaryBox');
@@ -903,6 +952,41 @@
     try{
       localStorage.setItem('work-orders-history', JSON.stringify(history));
     }catch(e){ showSaveError(); }
+  }
+
+  function loadCarts(){
+    try{
+      const raw = localStorage.getItem('work-orders-carts');
+      carts = raw ? JSON.parse(raw) : [];
+    }catch(e){
+      carts = [];
+    }
+  }
+
+  function saveCarts(){
+    try{
+      localStorage.setItem('work-orders-carts', JSON.stringify(carts));
+    }catch(e){ showSaveError(); }
+  }
+
+  const HEBREW_MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+
+  function monthKey(d){ return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); }
+
+  function monthLabel(key){
+    const parts = key.split('-');
+    const y = parseInt(parts[0], 10), m = parseInt(parts[1], 10);
+    return HEBREW_MONTHS[m-1] + ' ' + y;
+  }
+
+  function cartTotalsByMonth(){
+    const totals = {};
+    carts.forEach(c => {
+      if(!c.ts) return;
+      const key = monthKey(new Date(c.ts));
+      totals[key] = (totals[key] || 0) + (Number(c.count) || 0);
+    });
+    return totals;
   }
 
   function showSaveError(){
@@ -1402,8 +1486,31 @@
     selectOverlay.hidden = false;
   });
 
+  function buildSummaryText(entries, cartsCount){
+    const groups = [
+      { kind:'pka', label:'פקעות' },
+      { kind:'sku', label:'מק״טים' }
+    ];
+
+    const parts = [];
+    groups.forEach(g => {
+      const rows = entries.filter(e => e.kind === g.kind);
+      if(rows.length === 0) return;
+      if(parts.length > 0) parts.push('');
+      parts.push(g.label);
+      rows.forEach(r => parts.push(r.label + ' - ' + trimNum(r.qty) + ' ' + r.unit));
+    });
+
+    if(cartsCount){
+      parts.push('');
+      parts.push('עגלות: ' + trimNum(cartsCount));
+    }
+
+    return parts.join('\n');
+  }
+
   document.getElementById('qtyDoneBtn').addEventListener('click', () => {
-    const lines = [];
+    const entries = [];
     const ts = new Date().toISOString();
 
     selectedIds.forEach(id => {
@@ -1417,7 +1524,7 @@
       const rem = remainingOf(it);
       if(rem !== null && rem <= 0) it.done = true;
 
-      lines.push(labelOf(it) + ' - ' + trimNum(val) + ' ' + (it.unit || ''));
+      entries.push({ kind: it.kind, label: labelOf(it), desc: it.desc, qty: val, unit: it.unit || '' });
 
       history.push({
         id: uid(),
@@ -1430,7 +1537,7 @@
       });
     });
 
-    if(lines.length === 0){
+    if(entries.length === 0){
       const first = qtyListEl.querySelector('input[data-qty]');
       if(first) first.focus();
       return;
@@ -1440,14 +1547,53 @@
     saveHistory();
     render();
 
+    pendingPaintEntries = entries;
     qtyOverlay.hidden = true;
-    summaryBox.textContent = lines.join('\n');
+    cartsInput.value = '';
+    cartsOverlay.hidden = false;
+    cartsInput.focus();
+  });
+
+  function finishPainting(cartsCount){
+    if(cartsCount > 0){
+      carts.push({ id: uid(), ts: new Date().toISOString(), count: cartsCount });
+      saveCarts();
+    }
+    cartsOverlay.hidden = true;
+    summaryBox.textContent = buildSummaryText(pendingPaintEntries, cartsCount);
+    pendingPaintEntries = [];
     copyBtn.textContent = 'העתקת הטקסט';
     copyBtn.classList.remove('copied');
     summaryOverlay.hidden = false;
+  }
+
+  document.getElementById('cartsSkipBtn').addEventListener('click', () => { finishPainting(0); });
+
+  document.getElementById('cartsDoneBtn').addEventListener('click', () => {
+    const raw = cartsInput.value.trim();
+    const val = raw === '' ? 0 : parseInt(raw, 10);
+    finishPainting(isNaN(val) || val < 0 ? 0 : val);
   });
 
   document.getElementById('summaryCloseBtn').addEventListener('click', () => { summaryOverlay.hidden = true; });
+
+  async function copyToClipboard(text){
+    try{
+      await navigator.clipboard.writeText(text);
+      return true;
+    }catch(e){
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      let ok = false;
+      try{ ok = document.execCommand('copy'); }catch(e2){ ok = false; }
+      document.body.removeChild(ta);
+      return ok;
+    }
+  }
 
   /* ---------- history ---------- */
 
@@ -1485,7 +1631,40 @@
     historyListEl.innerHTML = html;
   }
 
+  function renderCartsReport(){
+    const totals = cartTotalsByMonth();
+    const keys = Object.keys(totals).sort().reverse();
+
+    if(keys.length === 0){
+      cartsReportSection.hidden = true;
+      cartsReportList.innerHTML = '';
+      return;
+    }
+    cartsReportSection.hidden = false;
+    cartsReportList.innerHTML = keys.map(key => {
+      return '<div class="cart-month-row">' +
+        '<div>' +
+          '<div class="cmr-label">' + escapeHtml(monthLabel(key)) + '</div>' +
+          '<div class="cmr-total">' + trimNum(totals[key]) + ' עגלות</div>' +
+        '</div>' +
+        '<button class="qe-fill" data-copy-cart="' + key + '">העתקה</button>' +
+      '</div>';
+    }).join('');
+  }
+
+  cartsReportList.addEventListener('click', async (e) => {
+    const btn = e.target.closest('button[data-copy-cart]');
+    if(!btn) return;
+    const key = btn.dataset.copyCart;
+    const totals = cartTotalsByMonth();
+    const text = 'דו"ח עגלות - ' + monthLabel(key) + '\nסה"כ עגלות: ' + trimNum(totals[key] || 0);
+    const ok = await copyToClipboard(text);
+    btn.textContent = ok ? '✓ הועתק' : 'נכשל';
+    setTimeout(() => { btn.textContent = 'העתקה'; }, 2000);
+  });
+
   historyBtn.addEventListener('click', () => {
+    renderCartsReport();
     renderHistory();
     historyOverlay.hidden = false;
   });
@@ -1493,21 +1672,7 @@
   historyOverlay.addEventListener('click', (e) => { if(e.target === historyOverlay) historyOverlay.hidden = true; });
 
   copyBtn.addEventListener('click', async () => {
-    const text = summaryBox.textContent;
-    let ok = false;
-    try{
-      await navigator.clipboard.writeText(text);
-      ok = true;
-    }catch(e){
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      ta.style.position = 'fixed';
-      ta.style.opacity = '0';
-      document.body.appendChild(ta);
-      ta.select();
-      try{ ok = document.execCommand('copy'); }catch(e2){ ok = false; }
-      document.body.removeChild(ta);
-    }
+    const ok = await copyToClipboard(summaryBox.textContent);
     copyBtn.textContent = ok ? '✓ הועתק' : 'ההעתקה נכשלה — סמן והעתק ידנית';
     if(ok) copyBtn.classList.add('copied');
     setTimeout(() => {
@@ -1519,6 +1684,7 @@
   applyKindChrome();
   loadData();
   loadHistory();
+  loadCarts();
 
   if('serviceWorker' in navigator){
     window.addEventListener('load', () => {
