@@ -43,17 +43,19 @@
 
 `loadData()` ו-`saveData()` עברו ל-`localStorage`.
 
-### 2. קריאת ה-API לסריקה עובדת בלי מפתח רק בתוך Artifacts
+### 2. ~~קריאת ה-API לסריקה עובדת בלי מפתח רק בתוך Artifacts~~ ✅ פתור
 
-`callClaude()` עושה `fetch` ל-`https://api.anthropic.com/v1/messages` בלי
-API key — זה עובד רק בסביבת Artifacts.
+`callClaude()` קוראת ל-proxy ב-`worker/` (Cloudflare Worker, `pkaot-scan-proxy`)
+במקום ישירות ל-Anthropic. ה-worker מחזיק את מפתח ה-API כ-secret
+(`ANTHROPIC_API_KEY`, הוגדר עם `wrangler secret put`) ומעביר את הבקשה הלאה.
 
-**אסור להטמיע API key בקוד צד-לקוח.** הפתרון: proxy קטן
-(Cloudflare Workers / Vercel Function) שמחזיק את המפתח ומעביר את הבקשה.
-ה-frontend קורא ל-proxy במקום ישירות ל-Anthropic.
+- כתובת ה-proxy: `https://pkaot-scan-proxy.quixonn.workers.dev`
+- ה-worker מקבל בקשות רק מ-Origin של `https://quixonn-alt.github.io` (מוגדר
+  ב-`ALLOWED_ORIGIN` ב-`worker/src/index.js`) — לשנות שם אם ה-hosting זז.
+- פריסה: `cd worker && npx wrangler deploy` (דורש `wrangler login` פעם אחת).
+- אם צריך להחליף/לחדש את המפתח: `cd worker && npx wrangler secret put ANTHROPIC_API_KEY`.
 
-עד שזה מוכן — הסריקה תיכשל אבל האפליקציה תמשיך לעבוד, כי יש נפילה
-להוספה ידנית (`showScanError`).
+עדיין יש נפילה להוספה ידנית אם הסריקה נכשלת (`showScanError`).
 
 ## יעד
 
