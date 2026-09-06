@@ -41,7 +41,7 @@
     min-height:100%;
   }
 
-  body{ padding-bottom:calc(178px + env(safe-area-inset-bottom)); }
+  body{ padding-bottom:calc(178px + env(safe-area-inset-bottom, 0px)); }
 
   h1,h2,h3{ font-family:var(--font-display); font-weight:900; letter-spacing:-0.02em; margin:0; }
 
@@ -55,10 +55,25 @@
 
   /* ---------- header ---------- */
 
+  /* פס שחור קבוע מאחורי שורת הסטטוס של האייפון (שעה / סוללה),
+     כדי שהכותרת לא תיכנס מתחתיה כשהאפליקציה רצה במסך מלא. */
+  .status-guard{
+    position:fixed;
+    top:0; right:0; left:0;
+    height:env(safe-area-inset-top, 0px);
+    background:var(--ink);
+    z-index:50;
+    pointer-events:none;
+  }
+
   .app-header{
     background:var(--ink);
     color:#fff;
-    padding:14px 14px 0;
+    padding:
+      calc(14px + env(safe-area-inset-top, 0px))
+      calc(14px + env(safe-area-inset-right, 0px))
+      0
+      calc(14px + env(safe-area-inset-left, 0px));
   }
 
   .header-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
@@ -106,7 +121,11 @@
     background:var(--ink);
     width:min(78vw, 320px);
     height:100%;
-    padding:16px 14px calc(16px + env(safe-area-inset-bottom));
+    padding:
+      calc(16px + env(safe-area-inset-top, 0px))
+      calc(14px + env(safe-area-inset-right, 0px))
+      calc(16px + env(safe-area-inset-bottom, 0px))
+      calc(14px + env(safe-area-inset-left, 0px));
     display:flex;
     flex-direction:column;
     gap:10px;
@@ -203,8 +222,8 @@
   /* ---------- controls ---------- */
 
   .controls{
-    padding:12px 14px;
-    position:sticky; top:0;
+    padding:12px calc(14px + env(safe-area-inset-right, 0px)) 12px calc(14px + env(safe-area-inset-left, 0px));
+    position:sticky; top:env(safe-area-inset-top, 0px);
     background:var(--paper);
     border-bottom:3px solid var(--ink);
     z-index:5;
@@ -248,7 +267,10 @@
 
   /* ---------- list ---------- */
 
-  .list{ padding:14px 14px 6px; display:flex; flex-direction:column; gap:12px; }
+  .list{
+    padding:14px calc(14px + env(safe-area-inset-right, 0px)) 6px calc(14px + env(safe-area-inset-left, 0px));
+    display:flex; flex-direction:column; gap:12px;
+  }
 
   .item-card{
     position:relative;
@@ -352,7 +374,11 @@
   .bottom-bar{
     position:fixed;
     bottom:0; right:0; left:0;
-    padding:10px 14px calc(10px + env(safe-area-inset-bottom));
+    padding:
+      10px
+      calc(14px + env(safe-area-inset-right, 0px))
+      calc(10px + env(safe-area-inset-bottom, 0px))
+      calc(14px + env(safe-area-inset-left, 0px));
     background:var(--paper);
     border-top:4px solid var(--ink);
     display:flex;
@@ -417,8 +443,13 @@
     width:100%;
     border-top:5px solid var(--ink);
     border-radius:0;
-    padding:18px 14px calc(18px + env(safe-area-inset-bottom));
+    padding:
+      18px
+      calc(14px + env(safe-area-inset-right, 0px))
+      calc(18px + env(safe-area-inset-bottom, 0px))
+      calc(14px + env(safe-area-inset-left, 0px));
     max-height:90vh;
+    max-height:calc(90dvh - env(safe-area-inset-top, 0px));
     overflow-y:auto;
     animation:sheet-up .18s ease-out;
   }
@@ -766,6 +797,8 @@
 </style>
 </head>
 <body>
+
+  <div class="status-guard" aria-hidden="true"></div>
 
   <header class="app-header">
     <div class="header-row">
