@@ -919,6 +919,7 @@
       <button class="drawer-item" id="addMenuBtn">הוספה ידנית</button>
       <button class="drawer-item" id="doneMenuBtn">הושלמו</button>
       <button class="drawer-item" id="exportMenuBtn">ייצוא לאקסל</button>
+      <button class="drawer-item" id="backupMenuBtn">גיבוי להעברה למכשיר אחר</button>
     </nav>
   </div>
 
@@ -2322,6 +2323,76 @@
     }
   }
 
+  /* ---------- backup / restore ----------
+     Home-screen web apps on iOS get their own isolated storage, separate
+     from Safari's — removing the icon wipes it. This link-based backup
+     lets the current data be carried to another device (or restored after
+     exactly that happens): the data travels as a base64 blob in the URL
+     hash, which never reaches any server. */
+
+  function b64EncodeUnicode(str){
+    const bytes = new TextEncoder().encode(str);
+    let binary = '';
+    const chunk = 0x8000;
+    for(let i = 0; i < bytes.length; i += chunk){
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+    }
+    return btoa(binary).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  }
+
+  function b64DecodeUnicode(b64){
+    let s = b64.replace(/-/g,'+').replace(/_/g,'/');
+    while(s.length % 4) s += '=';
+    const bytes = Uint8Array.from(atob(s), c => c.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
+  }
+
+  async function shareBackupLink(){
+    const json = JSON.stringify({ items: items, history: history, carts: carts });
+    const link = location.origin + location.pathname + '#restore=' + b64EncodeUnicode(json);
+    if(navigator.share){
+      try{ await navigator.share({ title:'גיבוי פקעות', url: link }); return true; }catch(e){ /* cancelled — fall back to copy */ }
+    }
+    return copyToClipboard(link);
+  }
+
+  document.getElementById('backupMenuBtn').addEventListener('click', async () => {
+    closeDrawer();
+    const ok = await shareBackupLink();
+    statusMsgEl.hidden = false;
+    statusMsgEl.textContent = ok ? 'קישור הגיבוי הועתק — הדבק ושלח למכשיר אחר, ופתח שם' : 'ההעתקה נכשלה, נסה שוב';
+    setTimeout(() => { if(dataReady) statusMsgEl.hidden = true; }, 4000);
+  });
+
+  function checkRestoreHash(){
+    const m = location.hash.match(/^#restore=(.+)$/);
+    if(!m) return;
+    window.history.replaceState(null, '', location.pathname + location.search);
+
+    let data;
+    try{ data = JSON.parse(b64DecodeUnicode(m[1])); }catch(e){ return; }
+    if(!data || !Array.isArray(data.items)) return;
+
+    const newItems = data.items.filter(it => !items.some(x => x.id === it.id));
+    const newHistory = (data.history || []).filter(h => !history.some(x => x.id === h.id));
+    const newCarts = (data.carts || []).filter(c => !carts.some(x => x.id === c.id));
+    if(newItems.length + newHistory.length + newCarts.length === 0) return;
+
+    const parts = [newItems.length + ' פריטים'];
+    if(newHistory.length) parts.push(newHistory.length + ' דיווחי צביעה');
+    if(newCarts.length) parts.push(newCarts.length + ' דיווחי עגלות');
+    if(!confirm('נמצא גיבוי עם ' + parts.join(', ') + '.\nלייבא לרשימה?')) return;
+
+    items = items.concat(newItems);
+    history = history.concat(newHistory);
+    carts = carts.concat(newCarts);
+    saveData();
+    saveHistory();
+    saveCarts();
+    render();
+    tick(25);
+  }
+
   /* ---------- drawer ---------- */
 
   const drawerOverlay = document.getElementById('drawerOverlay');
@@ -2367,6 +2438,7 @@
   loadData();
   loadHistory();
   loadCarts();
+  checkRestoreHash();
 
   if('serviceWorker' in navigator){
     window.addEventListener('load', () => {
