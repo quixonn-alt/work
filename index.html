@@ -770,6 +770,60 @@
     margin-top:3px;
   }
 
+  /* ---------- barcode scanner ---------- */
+
+  .scanner-overlay{
+    position:fixed; inset:0;
+    background:#000;
+    z-index:25;
+    display:flex;
+    flex-direction:column;
+  }
+
+  .scanner-video{
+    position:absolute; inset:0;
+    z-index:0;
+    width:100%; height:100%;
+    object-fit:cover;
+  }
+
+  .scanner-frame{
+    position:absolute; inset:0;
+    z-index:0;
+    display:flex; align-items:center; justify-content:center;
+    pointer-events:none;
+  }
+  .scanner-frame-box{
+    width:78%; max-width:360px;
+    aspect-ratio:2.2/1;
+    border:4px solid var(--hi);
+    border-radius:14px;
+    box-shadow:0 0 0 999px rgba(0,0,0,0.5);
+  }
+
+  .scanner-top{
+    position:relative; z-index:1;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:calc(14px + env(safe-area-inset-top, 0px)) 14px 14px;
+  }
+  .scanner-top span{ color:#fff; font-family:var(--font-display); font-weight:800; font-size:1.1rem; }
+
+  .scanner-cancel{
+    background:#fff; color:var(--ink); border:none; border-radius:8px;
+    height:46px; padding:0 18px;
+    font-family:var(--font-display); font-weight:800; font-size:0.95rem;
+    cursor:pointer;
+  }
+
+  .scanner-status{
+    position:relative; z-index:1;
+    margin-top:auto;
+    text-align:center;
+    color:#fff;
+    font-weight:700;
+    padding:0 20px calc(28px + env(safe-area-inset-bottom, 0px));
+  }
+
   [hidden]{ display:none !important; }
 </style>
 </head>
@@ -812,7 +866,16 @@
   </div>
 
   <input type="file" id="fileInput" accept="image/*" capture="environment" hidden>
-  <input type="file" id="barcodeFileInput" accept="image/*" capture="environment" hidden>
+
+  <div id="barcodeScanOverlay" class="scanner-overlay" hidden>
+    <div class="scanner-top">
+      <span>סרוק ברקוד פק״ע</span>
+      <button id="barcodeScanCancelBtn" class="scanner-cancel" type="button">ביטול</button>
+    </div>
+    <video id="barcodeVideo" class="scanner-video" autoplay playsinline muted></video>
+    <div class="scanner-frame"><div class="scanner-frame-box"></div></div>
+    <div id="barcodeScanStatus" class="scanner-status"></div>
+  </div>
 
   <div id="modalOverlay" class="modal-overlay" hidden>
     <div class="modal">
@@ -1478,43 +1541,75 @@
     fileInput.click();
   });
 
-  /* ---------- barcode (experimental) ----------
+  /* ---------- barcode (experimental, live scan) ----------
+     Safari has no native BarcodeDetector, so this loads ZXing from a CDN —
+     the one deliberate exception to "no dependencies" in CLAUDE.md.
      Testing what a work-order card's barcode actually encodes before
      building real auto-fill on top of it — see CLAUDE.md roadmap. */
 
+  const ZXING_URL = 'https://cdn.jsdelivr.net/npm/@zxing/library@0.23.0/umd/index.min.js';
+
   const barcodeBtn = document.getElementById('barcodeBtn');
-  const barcodeFileInput = document.getElementById('barcodeFileInput');
+  const barcodeScanOverlay = document.getElementById('barcodeScanOverlay');
+  const barcodeVideo = document.getElementById('barcodeVideo');
+  const barcodeScanStatus = document.getElementById('barcodeScanStatus');
+  const barcodeScanCancelBtn = document.getElementById('barcodeScanCancelBtn');
 
-  barcodeBtn.addEventListener('click', () => {
-    barcodeFileInput.value = '';
-    barcodeFileInput.click();
-  });
+  let zxingLoadPromise = null;
+  let zxingReader = null;
 
-  barcodeFileInput.addEventListener('change', async (e) => {
-    const file = e.target.files && e.target.files[0];
-    if(!file) return;
+  function loadZXing(){
+    if(window.ZXing) return Promise.resolve();
+    if(!zxingLoadPromise){
+      zxingLoadPromise = new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = ZXING_URL;
+        s.onload = () => resolve();
+        s.onerror = () => { zxingLoadPromise = null; reject(new Error('load failed')); };
+        document.head.appendChild(s);
+      });
+    }
+    return zxingLoadPromise;
+  }
 
-    if(!('BarcodeDetector' in window)){
-      alert('הדפדפן הזה לא תומך בזיהוי ברקוד (ב-iPhone צריך iOS 17 ומעלה).');
+  function stopBarcodeScan(){
+    if(zxingReader){
+      try{ zxingReader.reset(); }catch(e){}
+    }
+    barcodeScanOverlay.hidden = true;
+  }
+
+  barcodeScanCancelBtn.addEventListener('click', stopBarcodeScan);
+
+  barcodeBtn.addEventListener('click', async () => {
+    barcodeScanOverlay.hidden = false;
+    barcodeScanStatus.textContent = 'טוען מנוע סריקה...';
+    try{
+      await loadZXing();
+    }catch(e){
+      barcodeScanOverlay.hidden = true;
+      alert('טעינת מנוע הסריקה נכשלה — בדוק חיבור לאינטרנט ונסה שוב.');
       return;
     }
 
-    scanOverlay.hidden = false;
-    scanStateText.textContent = 'מזהה ברקוד בצילום...';
+    barcodeScanStatus.textContent = 'כוון את המצלמה אל הברקוד';
+    zxingReader = new ZXing.BrowserMultiFormatReader();
     try{
-      const formats = await BarcodeDetector.getSupportedFormats();
-      const detector = new BarcodeDetector({ formats });
-      const bitmap = await createImageBitmap(file);
-      const codes = await detector.detect(bitmap);
-      scanOverlay.hidden = true;
-      if(codes.length === 0){
-        alert('לא נמצא ברקוד בתמונה. נסה שוב עם תאורה טובה יותר וקרוב יותר לברקוד.');
-        return;
-      }
-      alert('נמצא ברקוד:\n\n' + codes.map(c => c.format + ':\n' + c.rawValue).join('\n\n'));
+      await zxingReader.decodeFromConstraints(
+        { video: { facingMode: 'environment' } },
+        barcodeVideo,
+        (result) => {
+          if(!result) return;
+          tick(25);
+          const text = result.getText();
+          const format = ZXing.BarcodeFormat[result.getBarcodeFormat()] || '';
+          stopBarcodeScan();
+          alert('נסרק ברקוד (' + format + '):\n\n' + text);
+        }
+      );
     }catch(err){
-      scanOverlay.hidden = true;
-      alert('זיהוי הברקוד נכשל: ' + (err && err.message ? err.message : err));
+      stopBarcodeScan();
+      alert('לא ניתן לגשת למצלמה: ' + (err && err.message ? err.message : err));
     }
   });
 
@@ -2556,7 +2651,7 @@
          so redeploying within that window can go unnoticed — a versioned
          query string forces a genuinely fresh fetch every time this number
          changes. Bump SW_VERSION together with CACHE_NAME in sw.js. */
-      const SW_VERSION = '15';
+      const SW_VERSION = '16';
       navigator.serviceWorker.register('sw.js?v=' + SW_VERSION).catch(() => {});
     });
   }
