@@ -357,6 +357,7 @@
   .bar-btn:active{ transform:translate(-3px,3px); box-shadow:none; }
 
   #scanBtn{ background:var(--ink); color:#fff; }
+  #barcodeBtn{ background:var(--yellow); color:var(--ink); flex:0 0 auto; width:110px; }
 
   #paintedBtn{
     width:100%;
@@ -806,10 +807,12 @@
     <button id="paintedBtn">נצבעו</button>
     <div class="bar-row">
       <button id="scanBtn" class="bar-btn">📷 צילום פק״ע</button>
+      <button id="barcodeBtn" class="bar-btn">🔖 ברקוד</button>
     </div>
   </div>
 
   <input type="file" id="fileInput" accept="image/*" capture="environment" hidden>
+  <input type="file" id="barcodeFileInput" accept="image/*" capture="environment" hidden>
 
   <div id="modalOverlay" class="modal-overlay" hidden>
     <div class="modal">
@@ -1473,6 +1476,46 @@
   scanBtn.addEventListener('click', () => {
     fileInput.value = '';
     fileInput.click();
+  });
+
+  /* ---------- barcode (experimental) ----------
+     Testing what a work-order card's barcode actually encodes before
+     building real auto-fill on top of it — see CLAUDE.md roadmap. */
+
+  const barcodeBtn = document.getElementById('barcodeBtn');
+  const barcodeFileInput = document.getElementById('barcodeFileInput');
+
+  barcodeBtn.addEventListener('click', () => {
+    barcodeFileInput.value = '';
+    barcodeFileInput.click();
+  });
+
+  barcodeFileInput.addEventListener('change', async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if(!file) return;
+
+    if(!('BarcodeDetector' in window)){
+      alert('הדפדפן הזה לא תומך בזיהוי ברקוד (ב-iPhone צריך iOS 17 ומעלה).');
+      return;
+    }
+
+    scanOverlay.hidden = false;
+    scanStateText.textContent = 'מזהה ברקוד בצילום...';
+    try{
+      const formats = await BarcodeDetector.getSupportedFormats();
+      const detector = new BarcodeDetector({ formats });
+      const bitmap = await createImageBitmap(file);
+      const codes = await detector.detect(bitmap);
+      scanOverlay.hidden = true;
+      if(codes.length === 0){
+        alert('לא נמצא ברקוד בתמונה. נסה שוב עם תאורה טובה יותר וקרוב יותר לברקוד.');
+        return;
+      }
+      alert('נמצא ברקוד:\n\n' + codes.map(c => c.format + ':\n' + c.rawValue).join('\n\n'));
+    }catch(err){
+      scanOverlay.hidden = true;
+      alert('זיהוי הברקוד נכשל: ' + (err && err.message ? err.message : err));
+    }
   });
 
   fileInput.addEventListener('change', async (e) => {
