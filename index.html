@@ -438,6 +438,22 @@
   }
   .field input:focus, .field select:focus{ box-shadow:-3px 3px 0 var(--hi); }
 
+  .field textarea{
+    width:100%;
+    padding:12px;
+    border:3px solid var(--ink);
+    border-radius:6px;
+    font-family:var(--font-mono);
+    font-size:0.8rem;
+    direction:ltr;
+    text-align:left;
+    color:var(--ink);
+    background:var(--surface);
+    outline:none;
+    resize:vertical;
+  }
+  .field textarea:focus{ box-shadow:-3px 3px 0 var(--hi); }
+
   .row-2{ display:flex; gap:10px; }
   .row-2 .field{ flex:1; }
 
@@ -920,6 +936,7 @@
       <button class="drawer-item" id="doneMenuBtn">הושלמו</button>
       <button class="drawer-item" id="exportMenuBtn">ייצוא לאקסל</button>
       <button class="drawer-item" id="backupMenuBtn">גיבוי להעברה למכשיר אחר</button>
+      <button class="drawer-item" id="importMenuBtn">ייבוא גיבוי</button>
     </nav>
   </div>
 
@@ -969,6 +986,21 @@
       <div id="historyEmpty" class="status-msg" hidden>עדיין אין דיווחים</div>
       <div class="modal-actions">
         <button class="btn btn-secondary" id="historyCloseBtn">סגירה</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="importOverlay" class="modal-overlay" hidden>
+    <div class="modal">
+      <h2>ייבוא גיבוי</h2>
+      <p class="modal-sub">הדבק כאן את הקישור או הקוד שקיבלת ולחץ ייבוא — שימושי כשהאפליקציה המותקנת במסך הבית לא רואה נתונים שיובאו דרך Safari</p>
+      <div class="field">
+        <label for="f-import">קישור או קוד גיבוי</label>
+        <textarea id="f-import" rows="6"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" id="importCancelBtn">ביטול</button>
+        <button class="btn btn-green" id="importGoBtn">ייבוא</button>
       </div>
     </div>
   </div>
@@ -2364,24 +2396,18 @@
     setTimeout(() => { if(dataReady) statusMsgEl.hidden = true; }, 4000);
   });
 
-  function checkRestoreHash(){
-    const m = location.hash.match(/^#restore=(.+)$/);
-    if(!m) return;
-    window.history.replaceState(null, '', location.pathname + location.search);
-
-    let data;
-    try{ data = JSON.parse(b64DecodeUnicode(m[1])); }catch(e){ return; }
-    if(!data || !Array.isArray(data.items)) return;
+  function importRestoreData(data){
+    if(!data || !Array.isArray(data.items)) return 'invalid';
 
     const newItems = data.items.filter(it => !items.some(x => x.id === it.id));
     const newHistory = (data.history || []).filter(h => !history.some(x => x.id === h.id));
     const newCarts = (data.carts || []).filter(c => !carts.some(x => x.id === c.id));
-    if(newItems.length + newHistory.length + newCarts.length === 0) return;
+    if(newItems.length + newHistory.length + newCarts.length === 0) return 'empty';
 
     const parts = [newItems.length + ' פריטים'];
     if(newHistory.length) parts.push(newHistory.length + ' דיווחי צביעה');
     if(newCarts.length) parts.push(newCarts.length + ' דיווחי עגלות');
-    if(!confirm('נמצא גיבוי עם ' + parts.join(', ') + '.\nלייבא לרשימה?')) return;
+    if(!confirm('נמצא גיבוי עם ' + parts.join(', ') + '.\nלייבא לרשימה?')) return 'cancelled';
 
     items = items.concat(newItems);
     history = history.concat(newHistory);
@@ -2391,7 +2417,48 @@
     saveCarts();
     render();
     tick(25);
+    return 'ok';
   }
+
+  function extractRestorePayload(text){
+    text = (text || '').trim();
+    const m = text.match(/restore=([^\s&]+)/);
+    return m ? m[1] : text;
+  }
+
+  function checkRestoreHash(){
+    const m = location.hash.match(/^#restore=(.+)$/);
+    if(!m) return;
+    window.history.replaceState(null, '', location.pathname + location.search);
+    let data;
+    try{ data = JSON.parse(b64DecodeUnicode(m[1])); }catch(e){ return; }
+    importRestoreData(data);
+  }
+
+  const importOverlay = document.getElementById('importOverlay');
+  const importInput = document.getElementById('f-import');
+
+  document.getElementById('importMenuBtn').addEventListener('click', () => {
+    closeDrawer();
+    importInput.value = '';
+    importOverlay.hidden = false;
+    importInput.focus();
+  });
+  document.getElementById('importCancelBtn').addEventListener('click', () => { importOverlay.hidden = true; });
+  importOverlay.addEventListener('click', (e) => { if(e.target === importOverlay) importOverlay.hidden = true; });
+
+  document.getElementById('importGoBtn').addEventListener('click', () => {
+    const payload = extractRestorePayload(importInput.value);
+    if(!payload) return;
+    let data;
+    try{ data = JSON.parse(b64DecodeUnicode(payload)); }catch(e){
+      alert('לא הצלחתי לקרוא את הקוד. ודא שהעתקת את כולו.');
+      return;
+    }
+    const result = importRestoreData(data);
+    if(result === 'invalid') alert('הקוד לא תקין.');
+    if(result === 'ok' || result === 'empty') importOverlay.hidden = true;
+  });
 
   /* ---------- drawer ---------- */
 
