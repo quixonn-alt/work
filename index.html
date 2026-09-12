@@ -2552,7 +2552,12 @@
 
   if('serviceWorker' in navigator){
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('sw.js').catch(() => {});
+      /* GitHub Pages caches sw.js for 10 minutes (Cache-Control: max-age=600),
+         so redeploying within that window can go unnoticed — a versioned
+         query string forces a genuinely fresh fetch every time this number
+         changes. Bump SW_VERSION together with CACHE_NAME in sw.js. */
+      const SW_VERSION = '15';
+      navigator.serviceWorker.register('sw.js?v=' + SW_VERSION).catch(() => {});
     });
   }
 })();

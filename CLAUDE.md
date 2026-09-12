@@ -182,9 +182,14 @@ PWA שמותקנת במסך הבית של הטלפון:
 
 `index.html` ו-`sw.js` יושבים ב-GitHub Pages
 (`https://quixonn-alt.github.io/work/`) ונדחפים ב-push ל-`master`.
-**בכל שינוי ב-`index.html` חייבים להעלות את `CACHE_NAME` ב-`sw.js`** —
-אחרת ה-service worker ימשיך להגיש את הגרסה השמורה. הנתונים יושבים
-ב-`localStorage` של הדפדפן בטלפון, לא ב-git, ופריסה לא נוגעת בהם.
+GitHub Pages משרת עם `Cache-Control: max-age=600` — עדכון שני תוך פחות
+מ-10 דקות עלול לא להיתפס כלל. **בכל שינוי ב-`index.html` חייבים להעלות
+שני מספרים ביחד, לאותו ערך:** `CACHE_NAME` ב-`sw.js`, ו-`SW_VERSION`
+ב-`navigator.serviceWorker.register('sw.js?v=' + SW_VERSION)` בתחתית
+`index.html`. ה-query string משנה את כתובת ה-URL של הקובץ, ולכן מכריח
+בקשת רשת אמיתית גם בתוך חלון ה-10 דקות; בלעדיו ה-service worker עלול
+להמשיך להגיש גרסה ישנה בטלפון גם אחרי סגירה מלאה ופתיחה מחדש. הנתונים
+יושבים ב-`localStorage` של הדפדפן בטלפון, לא ב-git, ופריסה לא נוגעת בהם.
 
 ## רעיונות להמשך
 

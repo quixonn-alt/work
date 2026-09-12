@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pkaot-v14';
+const CACHE_NAME = 'pkaot-v15';
 const APP_SHELL = [
   './',
   './index.html',
@@ -8,8 +8,15 @@ const APP_SHELL = [
 ];
 
 self.addEventListener('install', (event) => {
+  // cache.addAll() would happily reuse a stale HTTP-cached copy of these
+  // files; { cache: 'reload' } forces a real network fetch so a fresh
+  // deploy can't get baked into the cache as the old version.
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL))
+    caches.open(CACHE_NAME).then((cache) =>
+      Promise.all(APP_SHELL.map((url) =>
+        fetch(url, { cache: 'reload' }).then((res) => cache.put(url, res))
+      ))
+    )
   );
   self.skipWaiting();
 });
