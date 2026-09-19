@@ -512,6 +512,40 @@
   }
   .btn-secondary{ background:var(--surface); color:var(--ink); }
 
+  .drawing-btn{
+    width:100%; height:60px;
+    border:3px solid var(--ink); border-radius:6px;
+    background:var(--surface); color:var(--ink);
+    font-family:var(--font-display); font-size:1rem; font-weight:800;
+    cursor:pointer;
+  }
+  .drawing-btn:active{ background:var(--yellow); }
+
+  .drawing-thumb-wrap{ display:flex; align-items:center; gap:10px; }
+  .drawing-thumb{
+    width:84px; height:84px; object-fit:cover;
+    border:3px solid var(--ink); border-radius:6px; cursor:pointer; flex-shrink:0;
+  }
+  .drawing-remove{
+    flex:1; height:60px;
+    border:3px solid var(--ink); border-radius:6px;
+    background:var(--surface); color:var(--ink);
+    font-family:var(--font-display); font-weight:800; font-size:0.95rem;
+    cursor:pointer;
+  }
+
+  .drawing-view-overlay{
+    position:fixed; inset:0; z-index:60;
+    background:rgba(18,32,25,0.94);
+    display:flex; align-items:center; justify-content:center;
+    padding:
+      calc(20px + env(safe-area-inset-top, 0px))
+      calc(20px + env(safe-area-inset-right, 0px))
+      calc(20px + env(safe-area-inset-bottom, 0px))
+      calc(20px + env(safe-area-inset-left, 0px));
+  }
+  .drawing-view-overlay img{ max-width:100%; max-height:100%; border-radius:8px; }
+
   .delete-link{
     display:block;
     width:100%;
@@ -868,6 +902,7 @@
   </div>
 
   <input type="file" id="fileInput" accept="image/*" capture="environment" hidden>
+  <input type="file" id="drawingInput" accept="image/*" hidden>
 
   <div id="barcodeScanOverlay" class="scanner-overlay" hidden>
     <div class="scanner-top">
@@ -917,6 +952,17 @@
         <input type="date" id="f-date">
       </div>
 
+      <div class="field">
+        <label>שרטוט</label>
+        <div id="drawingEmpty">
+          <button type="button" class="drawing-btn" id="drawingAddBtn">הוסף שרטוט מהגלריה</button>
+        </div>
+        <div id="drawingFilled" class="drawing-thumb-wrap" hidden>
+          <img id="drawingThumb" class="drawing-thumb" alt="שרטוט">
+          <button type="button" class="drawing-remove" id="drawingRemoveBtn">הסר שרטוט</button>
+        </div>
+      </div>
+
       <div class="field" id="statusField" hidden>
         <label>סטטוס</label>
         <div class="status-toggle">
@@ -945,6 +991,10 @@
       </div>
       <button class="delete-link" id="deleteBtn" hidden>מחיקה</button>
     </div>
+  </div>
+
+  <div id="drawingViewOverlay" class="drawing-view-overlay" hidden>
+    <img id="drawingViewImg" alt="שרטוט">
   </div>
 
   <div id="scanOverlay" class="modal-overlay" hidden>
@@ -1096,6 +1146,7 @@
   let editingId = null;
   let editingKind = 'pka';
   let editingDone = false;
+  let editingDrawing = null;
   let dataReady = false;
   let selectedIds = [];
   let scannedSkus = [];
@@ -1126,6 +1177,14 @@
   const statusField = document.getElementById('statusField');
   const statusOpenBtn = document.getElementById('statusOpen');
   const statusDoneBtn = document.getElementById('statusDone');
+  const drawingInput = document.getElementById('drawingInput');
+  const drawingEmpty = document.getElementById('drawingEmpty');
+  const drawingFilled = document.getElementById('drawingFilled');
+  const drawingThumb = document.getElementById('drawingThumb');
+  const drawingAddBtn = document.getElementById('drawingAddBtn');
+  const drawingRemoveBtn = document.getElementById('drawingRemoveBtn');
+  const drawingViewOverlay = document.getElementById('drawingViewOverlay');
+  const drawingViewImg = document.getElementById('drawingViewImg');
 
   const scanOverlay = document.getElementById('scanOverlay');
   const scanStateText = document.getElementById('scanStateText');
@@ -1466,6 +1525,8 @@
     editingDone = !!(item && item.done);
     statusField.hidden = !item;
     paintStatusToggle();
+    editingDrawing = src.drawing || null;
+    renderDrawingField();
     deleteBtn.hidden = !item;
     modalOverlay.hidden = false;
     (isSku ? skuInput : pkaInput).focus();
@@ -1476,6 +1537,41 @@
     editingId = null;
     modalSub.hidden = true;
   }
+
+  function renderDrawingField(){
+    const has = !!editingDrawing;
+    drawingEmpty.hidden = has;
+    drawingFilled.hidden = !has;
+    if(has) drawingThumb.src = editingDrawing;
+  }
+
+  drawingAddBtn.addEventListener('click', () => { drawingInput.value = ''; drawingInput.click(); });
+
+  drawingInput.addEventListener('change', async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if(!file) return;
+    try{
+      const b64 = await resizeToBase64(file, 1600);
+      editingDrawing = 'data:image/jpeg;base64,' + b64;
+      renderDrawingField();
+      tick(10);
+    }catch(err){
+      alert('טעינת התמונה נכשלה, נסה שוב.');
+    }
+  });
+
+  drawingRemoveBtn.addEventListener('click', () => {
+    if(!confirm('להסיר את השרטוט?')) return;
+    editingDrawing = null;
+    renderDrawingField();
+  });
+
+  drawingThumb.addEventListener('click', () => {
+    if(!editingDrawing) return;
+    drawingViewImg.src = editingDrawing;
+    drawingViewOverlay.hidden = false;
+  });
+  drawingViewOverlay.addEventListener('click', () => { drawingViewOverlay.hidden = true; });
 
   document.getElementById('addMenuBtn').addEventListener('click', () => {
     closeDrawer();
@@ -1506,7 +1602,8 @@
       unit: unitInput.value,
       date: dateInput.value,
       orderNumber: isSku ? '' : orderInput.value.trim(),
-      orderRow: isSku ? '' : orderRowInput.value.trim()
+      orderRow: isSku ? '' : orderRowInput.value.trim(),
+      drawing: editingDrawing
     };
 
     if(editingId){
@@ -2668,7 +2765,7 @@
          so redeploying within that window can go unnoticed — a versioned
          query string forces a genuinely fresh fetch every time this number
          changes. Bump SW_VERSION together with CACHE_NAME in sw.js. */
-      const SW_VERSION = '17';
+      const SW_VERSION = '18';
       navigator.serviceWorker.register('sw.js?v=' + SW_VERSION).catch(() => {});
     });
   }
