@@ -33,6 +33,8 @@
 
   *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 
+  button{ touch-action:manipulation; }
+
   html,body{
     margin:0; padding:0;
     background:var(--paper);
@@ -1251,8 +1253,6 @@
       if(it.v !== 2){
         const fixed = normalizeQty(it.qty);
         if(fixed !== null && fixed !== Number(it.qty)) it.qty = fixed;
-        const fixedPainted = normalizeQty(it.paintedQty);
-        if(fixedPainted !== null && fixedPainted !== Number(it.paintedQty)) it.paintedQty = fixedPainted;
         it.v = 2;
         changed = true;
       }
@@ -1557,6 +1557,7 @@
 
   let zxingLoadPromise = null;
   let zxingReader = null;
+  let barcodeScanActive = false;
 
   function loadZXing(){
     if(window.ZXing) return Promise.resolve();
@@ -1565,7 +1566,7 @@
         const s = document.createElement('script');
         s.src = ZXING_URL;
         s.onload = () => resolve();
-        s.onerror = () => { zxingLoadPromise = null; reject(new Error('load failed')); };
+        s.onerror = () => { s.remove(); zxingLoadPromise = null; reject(new Error('load failed')); };
         document.head.appendChild(s);
       });
     }
@@ -1573,24 +1574,33 @@
   }
 
   function stopBarcodeScan(){
+    barcodeScanActive = false;
     if(zxingReader){
       try{ zxingReader.reset(); }catch(e){}
+      zxingReader = null;
     }
     barcodeScanOverlay.hidden = true;
   }
 
   barcodeScanCancelBtn.addEventListener('click', stopBarcodeScan);
+  document.addEventListener('visibilitychange', () => { if(document.hidden) stopBarcodeScan(); });
+  window.addEventListener('pagehide', stopBarcodeScan);
 
   barcodeBtn.addEventListener('click', async () => {
+    if(barcodeScanActive) return;
+    barcodeScanActive = true;
     barcodeScanOverlay.hidden = false;
     barcodeScanStatus.textContent = 'טוען מנוע סריקה...';
     try{
       await loadZXing();
     }catch(e){
+      barcodeScanActive = false;
       barcodeScanOverlay.hidden = true;
       alert('טעינת מנוע הסריקה נכשלה — בדוק חיבור לאינטרנט ונסה שוב.');
       return;
     }
+
+    if(!barcodeScanActive) return;
 
     barcodeScanStatus.textContent = 'כוון את המצלמה אל הברקוד';
     zxingReader = new ZXing.BrowserMultiFormatReader();
@@ -1687,6 +1697,11 @@
       headers:{ 'Content-Type':'application/json' },
       body: JSON.stringify({ image:base64, prompt:prompt })
     });
+    if(!response.ok){
+      const bodyText = await response.text().catch(() => '');
+      console.error('scan proxy error', response.status, bodyText);
+      throw new Error('proxy ' + response.status);
+    }
     const data = await response.json();
     const text = (data.content || []).filter(c => c.type === 'text').map(c => c.text).join('\n');
     const clean = text.replace(/```json/g,'').replace(/```/g,'').trim();
@@ -1708,7 +1723,7 @@
       '  חשוב מאוד: הנקודה בדף היא נקודה עשרונית ולא מפריד אלפים.',
       '  "1.000" פירושו אחד. "3.000" פירושו שלוש. "4.050" פירושו ארבע וחמש מאיות.',
       '  אל תמיר, אל תעגל ואל תוריד ספרות — העתק את הטקסט בדיוק כמו שהוא מופיע.',
-      '- unit: היחידה שליד אותה כמות. ערכים אפשריים: יח\u0027 , ש\u0022ע , ק\u0022ג , מ\u05f3 , מ\u0022ר.',
+      '- unit: היחידה שליד אותה כמות. ערכים אפשריים: יח\u0027 , ש\u05f4ע , ק\u05f4ג , מ\u05f3 , מ\u05f4ר.',
       '- date: התאריך שליד "ת. פתיחה". בדף הוא בפורמט DD/MM/YY. החזר בפורמט YYYY-MM-DD (שנה 26 = 2026).',
       '- orderNumber: המספר שליד "הזמנה" (למשל SO26S000055). אם אין, החזר מחרוזת ריקה.',
       '- orderRow: המספר שליד "שורה". אם אין, החזר מחרוזת ריקה.',
@@ -1781,7 +1796,7 @@
       if(!cb || !cb.checked) return;
       const qi = skuPickList.querySelector('input[data-pickqty="' + i + '"]');
       const raw = qi ? qi.value.trim() : '';
-      const qty = raw === '' ? null : normalizeQty(parseFloat(raw));
+      const qty = raw === '' ? null : parseFloat(raw);
       items.push({
         id: uid(), kind:'sku', pka:'', sku:r.sku, desc:r.desc,
         qty: qty, unit:"יח'", date: todayStr(),
@@ -2521,16 +2536,18 @@
     const json = JSON.stringify({ items: items, history: history, carts: carts });
     const link = location.origin + location.pathname + '#restore=' + b64EncodeUnicode(json);
     if(navigator.share){
-      try{ await navigator.share({ title:'גיבוי פקעות', url: link }); return true; }catch(e){ /* cancelled — fall back to copy */ }
+      try{ await navigator.share({ title:'גיבוי פקעות', url: link }); return 'shared'; }catch(e){ /* cancelled — fall back to copy */ }
     }
-    return copyToClipboard(link);
+    return (await copyToClipboard(link)) ? 'copied' : 'failed';
   }
 
   document.getElementById('backupMenuBtn').addEventListener('click', async () => {
     closeDrawer();
-    const ok = await shareBackupLink();
+    const result = await shareBackupLink();
     statusMsgEl.hidden = false;
-    statusMsgEl.textContent = ok ? 'קישור הגיבוי הועתק — הדבק ושלח למכשיר אחר, ופתח שם' : 'ההעתקה נכשלה, נסה שוב';
+    statusMsgEl.textContent = result === 'shared' ? 'הגיבוי נשלח'
+      : result === 'copied' ? 'קישור הגיבוי הועתק — הדבק ושלח למכשיר אחר, ופתח שם'
+      : 'הפעולה נכשלה, נסה שוב';
     setTimeout(() => { if(dataReady) statusMsgEl.hidden = true; }, 4000);
   });
 
@@ -2651,7 +2668,7 @@
          so redeploying within that window can go unnoticed — a versioned
          query string forces a genuinely fresh fetch every time this number
          changes. Bump SW_VERSION together with CACHE_NAME in sw.js. */
-      const SW_VERSION = '16';
+      const SW_VERSION = '17';
       navigator.serviceWorker.register('sw.js?v=' + SW_VERSION).catch(() => {});
     });
   }
